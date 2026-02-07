@@ -62,7 +62,7 @@ void __fastcall TPlot::ReadSol(TStrings *files, int sel)
     ShowMsg(s.sprintf("reading %s...",paths[0]));
     ShowLegend(NULL);
     
-    if (!readsolt(paths,n,ts,te,tint,0,&sol)) {
+    if (!readsolt((const char **)paths,n,ts,te,tint,SOLQ_NONE,&sol)) {
         ShowMsg(s.sprintf("no solution data : %s...",paths[0]));
         ShowLegend(NULL);
         ReadWaitEnd();
@@ -137,7 +137,7 @@ void __fastcall TPlot::ReadSolStat(TStrings *files, int sel)
     ShowMsg(s.sprintf("reading %s...",paths[0]));
     ShowLegend(NULL);
     
-    readsolstatt(paths,n,ts,te,tint,SolStat+sel);
+    readsolstatt((const char **)paths,n,ts,te,tint,SolStat+sel);
     
     UpdateSatList();
 }
@@ -145,7 +145,6 @@ void __fastcall TPlot::ReadSolStat(TStrings *files, int sel)
 void __fastcall TPlot::ReadObs(TStrings *files)
 {
     obs_t obs={0};
-    nav_t nav={0};
     sta_t sta={0};
     AnsiString s;
     char file[1024];
@@ -158,13 +157,21 @@ void __fastcall TPlot::ReadObs(TStrings *files)
     ReadWaitStart();
     ShowLegend(NULL);
     
-    if ((nobs=ReadObsRnx(files,&obs,&nav,&sta))<=0) {
+    nav_t *nav = static_cast<nav_t *>(calloc(1, sizeof(nav_t)));
+    if (nav == NULL) {
+      trace(1, "TPlot::ReadObs nav alloc failed\n");
+      return;
+    }
+
+    if ((nobs=ReadObsRnx(files,&obs,nav,&sta))<=0) {
         ReadWaitEnd();
+        free(nav);
         return;
     }
     ClearObs();
     Obs=obs;
-    Nav=nav;
+    Nav=*nav;
+    free(nav);
     Sta=sta;
     SimObs=0;
     UpdateObs(nobs);
@@ -368,7 +375,7 @@ void __fastcall TPlot::GenVisData(void)
     sta_t sta={0};
     double tint,r,pos[3],rr[3],rs[6],e[3],azel[2];
     int i,j,nobs=0;
-    char name[16];
+    char name[8];
     
     trace(3,"GenVisData\n");
     
@@ -936,7 +943,7 @@ void __fastcall TPlot::ReadStaPos(const char *file, const char *sta,
             }
         }
         else {
-            if (sscanf(buff,"%lf %lf %lf %s",pos,pos+1,pos+2,code)<4) continue;
+            if (sscanf(buff,"%lf %lf %lf %255s",pos,pos+1,pos+2,code)<4) continue;
             if (strcmp(code,sta)) continue;
             pos[0]*=D2R;
             pos[1]*=D2R;
@@ -953,7 +960,7 @@ void __fastcall TPlot::SaveDop(AnsiString file)
     gtime_t time;
     double azel[MAXOBS*2],dop[4],tow;
     int i,j,ns,week;
-    char tstr[64];
+    char tstr[40];
     const char *tlabel;
     
     trace(3,"SaveDop: file=%s\n",file.c_str());
@@ -982,7 +989,7 @@ void __fastcall TPlot::SaveDop(AnsiString file)
         time=Obs.data[IndexObs[i]].time;
         if (TimeLabel==0) {
             tow=time2gpst(time,&week);
-            sprintf(tstr,"%4d %8.1f ",week,tow);
+            snprintf(tstr,sizeof(tstr),"%4d %8.1f ",week,tow);
         }
         else if (TimeLabel==1) {
             time2str(time,tstr,1);
@@ -1005,7 +1012,7 @@ void __fastcall TPlot::SaveSnrMp(AnsiString file)
     AnsiString ObsTypeText=ObsType2->Text;
     gtime_t time;
     double tow;
-    char sat[32],mp[32],tstr[64],*code=ObsTypeText.c_str()+1;
+    char sat[8],mp[32],tstr[40],*code=ObsTypeText.c_str()+1;
     const char *tlabel;
     int i,j,k,week;
     
@@ -1035,7 +1042,7 @@ void __fastcall TPlot::SaveSnrMp(AnsiString file)
             
             if (TimeLabel==0) {
                 tow=time2gpst(time,&week);
-                sprintf(tstr,"%4d %9.1f ",week,tow);
+                snprintf(tstr,sizeof(tstr),"%4d %9.1f ",week,tow);
             }
             else if (TimeLabel==1) {
                 time2str(time,tstr,1);
@@ -1047,7 +1054,7 @@ void __fastcall TPlot::SaveSnrMp(AnsiString file)
                 time2str(timeadd(gpst2utc(time),9*3600.0),tstr,1);
             }
             fprintf(fp,"%s %6s %8.1f %8.1f %9.2f %10.4f\n",tstr,sat,Az[j]*R2D,
-                    El[j]*R2D,Obs.data[j].SNR[k]*SNR_UNIT,!Mp[k]?0.0:Mp[k][j]);
+                    El[j]*R2D,Obs.data[j].SNR[k],!Mp[k]?0.0:Mp[k][j]);
         }
     }
     fclose(fp);
@@ -1097,7 +1104,7 @@ void __fastcall TPlot::Connect(void)
             Clear();
             initsolbuf(SolData+i,1,RtBuffSize+1);
         }
-        if (RtStream[i]==STR_SERIAL) mode|=STR_MODE_W;
+        if (RtStream[i]==STR_SERIAL) mode=STR_MODE_RW;
         
         strcpy(buff,path);
         if ((p=strstr(buff,"::"))) *p='\0';
@@ -1182,6 +1189,7 @@ int __fastcall TPlot::CheckObs(AnsiString file)
         return *(p-1)=='o'||*(p-1)=='O'||*(p-1)=='d'||*(p-1)=='D';
     }
     return !strcmp(p,".obs")||!strcmp(p,".OBS")||
+           !strcmp(p,".rnx")||!strcmp(p,".RNX")||
            !strcmp(p+3,"o" )||!strcmp(p+3,"O" )||
            !strcmp(p+3,"d" )||!strcmp(p+3,"D" );
 }
@@ -1239,7 +1247,7 @@ void __fastcall TPlot::UpdateObs(int nobs)
             int sat=Obs.data[i+k].sat;
             
             if (SimObs) {
-                char name[16];
+                char name[8];
                 satno2id(sat,name);
                 if (!tle_pos(time,name,"","",&TLEData,NULL,rs)) continue;
             }
@@ -1296,11 +1304,20 @@ void __fastcall TPlot::UpdateMp(void)
     
     for (i=0;i<Obs.n;i++) {
         data=Obs.data+i;
-        freq1=sat2freq(data->sat,data->code[0],&Nav);
-        freq2=sat2freq(data->sat,data->code[1],&Nav);
-        if (data->L[0]==0.0||data->L[1]==0.0||freq1==0.0||freq2==0.0) continue;
-        I=-CLIGHT*(data->L[0]/freq1-data->L[1]/freq2)/(1.0-SQR(freq1/freq2));
-        
+	/* choose two frequencies to calculate reference I */
+        for (j = 0; j < NFREQ + NEXOBS; j++) {
+            freq1 = sat2freq(data->sat, data->code[j], &Nav);
+            if (data->L[j] == 0.0 || freq1 == 0.0 ) continue;
+            for (k = j + 1; k < NFREQ + NEXOBS; k++) {
+                freq2 = sat2freq(data->sat, data->code[k], &Nav);
+                if (data->L[k] == 0.0 || freq2 == 0.0 || freq1 == freq2) continue;
+                I = -CLIGHT * (data->L[j] / freq1-data->L[k] / freq2) / (1.0 - SQR(freq1 / freq2));
+                break;
+            }
+            break;
+        }
+        if (freq1 == 0.0 || freq2 == 0.0) continue;
+
         for (j=0;j<NFREQ+NEXOBS;j++) {
             freq=sat2freq(data->sat,data->code[j],&Nav);
             if (data->P[j]==0.0||data->L[j]==0.0||freq==0.0) continue;

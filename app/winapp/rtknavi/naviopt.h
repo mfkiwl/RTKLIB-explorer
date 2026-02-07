@@ -11,6 +11,7 @@
 #include <ComCtrls.hpp>
 #include <FileCtrl.hpp>
 #include <Buttons.hpp>
+#include "rtklib.h"
 //---------------------------------------------------------------------------
 class TOptDialog : public TForm
 {
@@ -36,7 +37,6 @@ __published:
 	TComboBox *TropOpt;
 	TComboBox *PosMode;
 	TComboBox *Freq;
-	TComboBox *Solution;
 	TComboBox *SatEphem;
 	TEdit *ExSatsE;
 	TTabSheet *TabSheet2;
@@ -55,7 +55,7 @@ __published:
 	TEdit *ElMaskAR;
 	TEdit *SlipThres;
 	TEdit *MaxAgeDiff;
-	TEdit *RejectThres;
+	TEdit *RejectPhase;
 	TEdit *NumIter;
 	TTabSheet *TabSheet3;
 	TLabel *LabelSolFormat;
@@ -95,7 +95,6 @@ __published:
 	TEdit *PrNoise3;
 	TEdit *SatClkStab;
 	TTabSheet *TabSheet5;
-	TLabel *Label4;
 	TGroupBox *GroupRovAnt;
 	TLabel *LabelRovAntD;
 	TEdit *RovAntE;
@@ -166,7 +165,6 @@ __published:
 	TLabel *Label33;
 	TEdit *PrNoise4;
 	TEdit *PrNoise5;
-	TLabel *Label47;
 	TLabel *Label48;
 	TEdit *GeoidDataFile;
 	TButton *BtnGeoidDataFile;
@@ -188,13 +186,13 @@ __published:
 	TSpeedButton *BtnStaPosView;
 	TButton *BtnStaPosFile;
 	TLabel *Label34;
-	TEdit *OLFile;
-	TSpeedButton *BtnOLFileView;
-	TButton *BtnOLFile;
+	TEdit *BLQFile;
+	TSpeedButton *BtnBLQFileView;
+	TButton *BtnBLQFile;
 	TEdit *MeasErrR2;
 	TEdit *ElMaskHold;
 	TEdit *FileSwapMarginE;
-	TEdit *RejectGdop;
+	TEdit *RejectCode;
 	TLabel *Label45;
 	TEdit *ProxyAddrE;
 	TLabel *Label23;
@@ -242,10 +240,10 @@ __published:
     TEdit *ValidThresARMax;
 	TEdit *DopThres;
 	TEdit *MeasErrR5;
+	TEdit *MeasErrR6;
 	TLabel *Label12;
 	TEdit *MeasErr6;
 	TEdit *MeasErr8;
-	TLabel *Label39;
 	TEdit *MeasErr5;
 	TLabel *Label53;
 	void __fastcall BtnOkClick(TObject *Sender);
@@ -253,6 +251,7 @@ __published:
 	void __fastcall FormShow(TObject *Sender);
 	void __fastcall BtnAntPcvFileClick(TObject *Sender);
 	void __fastcall BtnDCBFileClick(TObject *Sender);
+	void __fastcall BtnDCBViewClick(TObject *Sender);
 	void __fastcall BtnAntPcvViewClick(TObject *Sender);
 	void __fastcall AmbResChange(TObject *Sender);
 	void __fastcall SatClkCorrClick(TObject *Sender);
@@ -284,6 +283,8 @@ __published:
 	void __fastcall BtnLocalDirClick(TObject *Sender);
 	void __fastcall BtnEOPFileClick(TObject *Sender);
 	void __fastcall BtnEOPViewClick(TObject *Sender);
+	void __fastcall BtnBLQFileClick(TObject *Sender);
+	void __fastcall BtnBLQViewClick(TObject *Sender);
 	void __fastcall BtnSnrMaskClick(TObject *Sender);
 	void __fastcall NavSys6Click(TObject *Sender);
 	void __fastcall ObsWeightChange(TObject *Sender);
@@ -304,12 +305,11 @@ public:
 	TFont *PanelFont,*PosFont;
 	int SvrCycle,SvrBuffSize,SolBuffSize,NavSelect,SavedSol;
 	int NmeaReq,NmeaCycle,TimeoutTime,ReconTime,DgpsCorr,SbasCorr;
-	int DebugTraceF,DebugStatusF;
 	int RovPosTypeF,RefPosTypeF,RovAntPcvF,RefAntPcvF,BaselineC;
 	int MoniPort,FileSwapMargin,PanelStack;
 	AnsiString ExSats,LocalDirectory;
 	AnsiString RovAntF,RefAntF,SatPcvFileF,AntPcvFileF,StaPosFileF;
-	AnsiString GeoidDataFileF,DCBFileF,EOPFileF;
+        AnsiString GeoidDataFileF,DCBFileF,EOPFileF,BLQFileF;
 	AnsiString ProxyAddr;
 	double RovAntDel[3],RefAntDel[3],RovPos[3],RefPos[3];
 	double Baseline[2],NmeaIntv[2];

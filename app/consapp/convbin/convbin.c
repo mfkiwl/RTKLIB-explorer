@@ -9,7 +9,7 @@
 * history : 2008/06/22 1.0 new
 *           2009/06/17 1.1 support glonass
 *           2009/12/19 1.2 fix bug on disable of glonass
-*                          fix bug on inproper header for rtcm2 and rtcm3
+*                          fix bug on improper header for rtcm2 and rtcm3
 *           2010/07/18 1.3 add option -v, -t, -h, -x
 *           2011/01/15 1.4 add option -ro, -hc, -hm, -hn, -ht, -ho, -hr, -ha,
 *                            -hp, -hd, -y, -c, -q 
@@ -42,8 +42,9 @@
 *           2020/11/30 1.20 include NavIC in default systems
 *                           force option -scan
 *                           delete option -noscan
-*                           surppress warnings
+*                           suppress warnings
 *-----------------------------------------------------------------------------*/
+#define _POSIX_C_SOURCE 199506
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +59,7 @@
 /* help text -----------------------------------------------------------------*/
 static const char *help[]={
 "",
-" Synopsys",
+" Synopsis",
 "",
 " convbin [option ...] file", 
 "",
@@ -66,26 +67,26 @@ static const char *help[]={
 "",
 " Convert RTCM, receiver raw data log and RINEX file to RINEX and SBAS/LEX",
 " message file. SBAS message file complies with RTKLIB SBAS/LEX message",
-" format. It supports the following messages or files.",
+" format. It supports the following messages or files:",
 "",
-" RTCM 2                : Type 1, 3, 9, 14, 16, 17, 18, 19, 22",
-" RTCM 3                : Type 1002, 1004, 1005, 1006, 1010, 1012, 1019, 1020",
-"                         Type 1071-1127 (MSM except for compact msg)",
-" NovAtel OEMV/4,OEMStar: RANGECMPB, RANGEB, RAWEPHEMB, IONUTCB, RAWWASSFRAMEB",
-" u-blox LEA-4T/5T/6T/8/9  : RXM-RAW, RXM-RAWX, RXM-SFRB",
-" Swift Piksi Multi     : ",
-" Hemisphere            : BIN76, BIN80, BIN94, BIN95, BIN96",
-" SkyTraq S1315F        : msg0xDD, msg0xE0, msg0xDC",
-" GW10                  : msg0x08, msg0x03, msg0x27, msg0x20",
-" Javad                 : [R*],[r*],[*R],[*r],[P*],[p*],[*P],[*p],[D*],[*d],",
-"                         [E*],[*E],[F*],[TC],[GE],[NE],[EN],[QE],[UO],[IO],",
-"                         [WD]",
-" NVS                   : BINR",
-" BINEX                 : big-endian, regular CRC, forward record (0xE2)",
-"                         0x01-01,0x01-02,0x01-03,0x01-04,0x01-06,0x7f-05",
-" Trimble               : RT17",
-" Septentrio            : SBF",
-" RINEX                 : OBS, NAV, GNAV, HNAV, LNAV, QNAV",
+" RTCM 2                 : Type 1, 3, 9, 14, 16, 17, 18, 19, 22",
+" RTCM 3                 : Type 1002, 1004, 1005, 1006, 1010, 1012, 1019, 1020",
+"                          Type 1071-1127 (MSM except for compact msg)",
+" NovAtel OEMV/4,OEMStar : RANGECMPB, RANGEB, RAWEPHEMB, IONUTCB, RAWWASSFRAMEB",
+" u-blox LEA-4T/5T/6T/8/9: RXM-RAW, RXM-RAWX, RXM-SFRB",
+" Swift Piksi Multi      : ",
+" Hemisphere             : BIN76, BIN80, BIN94, BIN95, BIN96",
+" SkyTraq S1315F         : msg0xDD, msg0xE0, msg0xDC",
+" GW10                   : msg0x08, msg0x03, msg0x27, msg0x20",
+" Javad                  : [R*],[r*],[*R],[*r],[P*],[p*],[*P],[*p],[D*],[*d],",
+"                          [E*],[*E],[F*],[TC],[GE],[NE],[EN],[QE],[UO],[IO],",
+"                          [WD]",
+" NVS                    : BINR",
+" BINEX                  : big-endian, regular CRC, forward record (0xE2)",
+"                          0x01-01,0x01-02,0x01-03,0x01-04,0x01-06,0x7f-05",
+" Trimble                : RT17",
+" Septentrio             : SBF",
+" RINEX                  : OBS, NAV, GNAV, HNAV, LNAV, QNAV",
 "",
 " Options [default]",
 "",
@@ -94,7 +95,7 @@ static const char *help[]={
 "     -te y/m/d h:m:s  end time [all]",
 "     -tr y/m/d h:m:s  approximated time for RTCM",
 "     -ti tint     observation data interval (s) [all]",
-"     -tt ttol     observation data epoch tolerance (s) [1.0]",
+"     -tt ttol     observation data epoch tolerance (s) [0.005]",
 "     -span span   time span (h) [all]",
 "     -r format    log format type",
 "                  rtcm2= RTCM 2",
@@ -109,29 +110,32 @@ static const char *help[]={
 "                  binex= BINEX",
 "                  rt17 = Trimble RT17",
 "                  sbf  = Septentrio SBF",
+"                  unicore = Unicore binary data output",
 "                  rinex= RINEX",
 "     -ro opt      receiver options",
-"     -f freq      number of frequencies [5]",
+"     -f freq      number of frequencies [all]",
 "     -hc comment  rinex header: comment line",
 "     -hm marker   rinex header: marker name",
 "     -hn markno   rinex header: marker number",
 "     -ht marktype rinex header: marker type",
-"     -ho observ   rinex header: oberver name and agency separated by /",
+"     -ho observ   rinex header: observer name and agency separated by /",
 "     -hr rec      rinex header: receiver number, type and version separated by /",
 "     -ha ant      rinex header: antenna number and type separated by /",
 "     -hp pos      rinex header: approx position x/y/z separated by /",
 "     -hd delta    rinex header: antenna delta h/e/n separated by /",
 "     -v ver       rinex version [3.04]",
-"     -od          include doppler frequency in rinex obs [on]",
-"     -os          include snr in rinex obs [on]",
+"     -od          include doppler frequency in rinex obs [off]",
+"     -os          include snr in rinex obs [off]",
 "     -oi          include iono correction in rinex nav header [off]",
 "     -ot          include time correction in rinex nav header [off]",
 "     -ol          include leap seconds in rinex nav header [off]",
 "     -halfc       half-cycle ambiguity correction [off]",
+"     -sortsats    sort observations by the RTKLib satellite index [off]",
 "     -mask   [sig[,...]] signal mask(s) (sig={G|R|E|J|S|C|I}L{1C|1P|1W|...})",
 "     -nomask [sig[,...]] signal no mask (same as above)",
 "     -x sat       exclude satellite",
 "     -y sys       exclude systems (G:GPS,R:GLO,E:GAL,J:QZS,S:SBS,C:BDS,I:IRN)",
+"     --glofcn [-7 to 6][,...]] GLONASS fcn for R01 to R32",
 "     -d dir       output directory [same as input file]",
 "     -c staid     use RINEX file name convention with staid [off]",
 "     -o ofile     output RINEX OBS file",
@@ -149,7 +153,7 @@ static const char *help[]={
 " <file>.nav, <file>.gnav, <file>.hnav, <file>.qnav, <file>.lnav,",
 " <file>.cnav, <file>.inav and <file>.sbs) are used. To obtain week number info",
 " for RTCM file, use -tr option to specify the approximated log start time.",
-" Without -tr option, the program obtains the week number from the time-tag file"
+" Without -tr option, the program obtains the week number from the time-tag file",
 " (if it exists) or the last modified time of the log file instead.",
 "",
 " If receiver type is not specified, type is recognized by the input",
@@ -165,8 +169,9 @@ static const char *help[]={
 "     *.bnx,*binex  BINEX",
 "     *.rt17        Trimble RT17",
 "     *.sbf         Septentrio SBF",
+"     *.unc         Unicore binary data output",
 "     *.obs,*.*o    RINEX OBS",
-"     *.rnx         RINEX OBS"
+"     *.rnx         RINEX OBS",
 "     *.nav,*.*n    RINEX NAV",
 };
 /* print help ----------------------------------------------------------------*/
@@ -289,9 +294,9 @@ static int convbin(int format, rnxopt_t *opt, const char *ifile, char **file,
     }
     for (i=0;i<NOUTFILE;i++) {
         if (!*dir||!*ofile[i]) continue;
-        if ((p=strrchr(ofile[i],FILEPATHSEP))) strcpy(work,p+1);
+        if ((p=strrchr(ofile[i],RTKLIB_FILEPATHSEP))) strcpy(work,p+1);
         else strcpy(work,ofile[i]);
-        sprintf(ofile[i],"%s%c%s",dir,FILEPATHSEP,work);
+        sprintf(ofile[i],"%s%c%s",dir,RTKLIB_FILEPATHSEP,work);
     }
     fprintf(stderr,"input file  : %s (%s)\n",ifile,formatstrs[format]);
     
@@ -307,42 +312,75 @@ static int convbin(int format, rnxopt_t *opt, const char *ifile, char **file,
     
     if (!convrnx(format,opt,ifile,ofile)) {
         fprintf(stderr,"\n");
-        return -1;
+        return 0;
     }
     fprintf(stderr,"\n");
-    return 0;
+    return 1;
 }
 /* set signal mask -----------------------------------------------------------*/
 static void setmask(const char *argv, rnxopt_t *opt, int mask)
 {
     char buff[1024],*p;
-    int i,code;
+    int i;
     
     strcpy(buff,argv);
-    for (p=strtok(buff,",");p;p=strtok(NULL,",")) {
+    char *r;
+    for (p=strtok_r(buff,",",&r);p;p=strtok_r(NULL,",",&r)) {
         if (strlen(p)<4||p[1]!='L') continue;
-        if      (p[0]=='G') i=0;
-        else if (p[0]=='R') i=1;
-        else if (p[0]=='E') i=2;
-        else if (p[0]=='J') i=3;
-        else if (p[0]=='S') i=4;
-        else if (p[0]=='C') i=5;
-        else if (p[0]=='I') i=6;
+        if      (p[0]=='G') i=RNX_SYS_GPS;
+        else if (p[0]=='R') i=RNX_SYS_GLO;
+        else if (p[0]=='E') i=RNX_SYS_GAL;
+        else if (p[0]=='J') i=RNX_SYS_QZS;
+        else if (p[0]=='S') i=RNX_SYS_SBS;
+        else if (p[0]=='C') i=RNX_SYS_CMP;
+        else if (p[0]=='I') i=RNX_SYS_IRN;
         else continue;
-        if ((code=obs2code(p+2))) {
+        int code=obs2code(p+2);
+        if (code != CODE_NONE) {
             opt->mask[i][code-1]=mask?'1':'0';
         }
     }
+}
+// Set GLONASS fcn -----------------------------------------------------------
+static void setglofcn(const char *argv, rnxopt_t *opt) {
+  char buff[1024];
+  strncpy(buff, argv, sizeof(buff));
+  buff[1023] = '\0';
+  char *p = buff;
+  for (int i = 0; i < 32; i++) {
+    if (p == NULL) break;
+    char *fcnstr = p;
+    for (;;) {
+      int c = *p++;
+      if (c == ',') {
+        p[-1] = '\0';
+        break;
+      }
+      if (c == '\0') {
+        p = NULL;
+        break;
+      }
+    }
+    if (strlen(fcnstr) < 1) continue;
+    int fcn;
+    int r = sscanf(fcnstr, "%d", &fcn);
+    if (r != 1) {
+      fprintf(stderr, "GLONASS R%02d fcn invalid '%s'\n", i + 1, fcnstr);
+      continue;
+    }
+    if (fcn < -7 || fcn > 6) {
+      fprintf(stderr, "GLONASS R%02d fcn %d out of range [-7 to 6]\n", i + 1, fcn);
+      continue;
+    }
+    opt->glofcn[i] = fcn + 8;
+  }
 }
 /* get start time of input file -----------------------------------------------*/
 static int get_filetime(const char *file, gtime_t *time)
 {
     FILE *fp;
-    struct stat st;
-    struct tm *tm;
     uint32_t time_time;
     uint8_t buff[64];
-    double ep[6];
     char path[1024],*paths[1],path_tag[1024];
 
     paths[0]=path;
@@ -358,19 +396,24 @@ static int get_filetime(const char *file, gtime_t *time)
             time->sec=0.0;
             fclose(fp);
             return 1;
-		}
+        }
         fclose(fp);
-	}
-    /* get modified time of input file */
-    if (!stat(path,&st)&&(tm=gmtime(&st.st_mtime))) {
-        ep[0]=tm->tm_year+1900;
-        ep[1]=tm->tm_mon+1;
-        ep[2]=tm->tm_mday;
-        ep[3]=tm->tm_hour;
-        ep[4]=tm->tm_min;
-        ep[5]=tm->tm_sec;
-        *time=utc2gpst(epoch2time(ep));
-        return 1;
+    }
+    /* Get modified time of input file. */
+    struct stat st;
+    if (!stat(path, &st)) {
+        struct tm tm;
+        if (gmtime_r(&st.st_mtime, &tm)) {
+          double ep[6];
+          ep[0] = tm.tm_year + 1900;
+          ep[1] = tm.tm_mon + 1;
+          ep[2] = tm.tm_mday;
+          ep[3] = tm.tm_hour;
+          ep[4] = tm.tm_min;
+          ep[5] = tm.tm_sec;
+          *time = utc2gpst(epoch2time(ep));
+          return 1;
+        }
     }
     return 0;
 }
@@ -380,14 +423,18 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
 {
     double eps[]={1980,1,1,0,0,0},epe[]={2037,12,31,0,0,0};
     double epr[]={2010,1,1,0,0,0},span=0.0;
-    int i,j,k,sat,nf=5,nc=2,format=-1;
+    int i,j,k,sat,nf=6,format=-1;
     char *p,*sys,*fmt="",*paths[1],path[1024],buff[256];
     
     opt->rnxver=304;
     opt->obstype=OBSTYPE_PR|OBSTYPE_CP;
     opt->navsys=SYS_GPS|SYS_GLO|SYS_GAL|SYS_QZS|SYS_SBS|SYS_CMP|SYS_IRN;
+    opt->ttol = 0.005;
     
-    for (i=0;i<6;i++) for (j=0;j<64;j++) opt->mask[i][j]='1';
+    for (i=0;i<RNX_NUMSYS;i++) {
+        for (j=0;j<MAXCODE;j++) opt->mask[i][j]='1';
+        opt->mask[i][MAXCODE]='\0';
+    }
     
     for (i=1;i<argc;i++) {
         if (!strcmp(argv[i],"-ts")&&i+2<argc) {
@@ -424,7 +471,7 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
             nf=atoi(argv[++i]);
         }
         else if (!strcmp(argv[i],"-hc")&&i+1<argc) {
-            if (nc<MAXCOMMENT) strcpy(opt->comment[nc++],argv[++i]);
+            rnxcomment(opt, argv[++i]);
         }
         else if (!strcmp(argv[i],"-hm")&&i+1<argc) {
             strcpy(opt->marker,argv[++i]);
@@ -437,31 +484,36 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
         }
         else if (!strcmp(argv[i],"-ho")&&i+1<argc) {
             strcpy(buff,argv[++i]);
-            for (j=0,p=strtok(buff,"/");j<2&&p;j++,p=strtok(NULL,"/")) {
+            char *r;
+            for (j=0,p=strtok_r(buff,"/",&r);j<2&&p;j++,p=strtok_r(NULL,"/",&r)) {
                 strcpy(opt->name[j],p);
             }
         }
         else if (!strcmp(argv[i],"-hr")&&i+1<argc) {
             strcpy(buff,argv[++i]);
-            for (j=0,p=strtok(buff,"/");j<3&&p;j++,p=strtok(NULL,"/")) {
+            char *r;
+            for (j=0,p=strtok_r(buff,"/",&r);j<3&&p;j++,p=strtok_r(NULL,"/",&r)) {
                 strcpy(opt->rec[j],p);
             }
         }
         else if (!strcmp(argv[i],"-ha")&&i+1<argc) {
             strcpy(buff,argv[++i]);
-            for (j=0,p=strtok(buff,"/");j<3&&p;j++,p=strtok(NULL,"/")) {
+            char *r;
+            for (j=0,p=strtok_r(buff,"/",&r);j<3&&p;j++,p=strtok_r(NULL,"/",&r)) {
                 strcpy(opt->ant[j],p);
             }
         }
         else if (!strcmp(argv[i],"-hp")&&i+1<argc) {
             strcpy(buff,argv[++i]);
-            for (j=0,p=strtok(buff,"/");j<3&&p;j++,p=strtok(NULL,"/")) {
+            char *r;
+            for (j=0,p=strtok_r(buff,"/",&r);j<3&&p;j++,p=strtok_r(NULL,"/",&r)) {
                 opt->apppos[j]=atof(p);
             }
         }
         else if (!strcmp(argv[i],"-hd")&&i+1<argc) {
             strcpy(buff,argv[++i]);
-            for (j=0,p=strtok(buff,"/");j<3&&p;j++,p=strtok(NULL,"/")) {
+            char *r;
+            for (j=0,p=strtok_r(buff,"/",&r);j<3&&p;j++,p=strtok_r(NULL,"/",&r)) {
                 opt->antdel[j]=atof(p);
             }
         }
@@ -484,13 +536,19 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
             opt->outleaps=1;
         }
         else if (!strcmp(argv[i],"-scan")) {
-            /* obsolute */ ;
+            /* obsolete */ ;
         }
         else if (!strcmp(argv[i],"-halfc")) {
             opt->halfcyc=1;
         }
+        else if (!strcmp(argv[i],"-sortsats")) {
+            opt->sortsats=1;
+        }
         else if (!strcmp(argv[i],"-mask")&&i+1<argc) {
-            for (j=0;j<6;j++) for (k=0;k<64;k++) opt->mask[j][k]='0';
+            for (j=0;j<RNX_NUMSYS;j++) {
+              for (k=0;k<MAXCODE;k++) opt->mask[j][k]='0';
+              opt->mask[j][MAXCODE]='\0';
+            }
             setmask(argv[++i],opt,1);
         }
         else if (!strcmp(argv[i],"-nomask")&&i+1<argc) {
@@ -508,6 +566,9 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
             else if (!strcmp(sys,"S")) opt->navsys&=~SYS_SBS;
             else if (!strcmp(sys,"C")) opt->navsys&=~SYS_CMP;
             else if (!strcmp(sys,"I")) opt->navsys&=~SYS_IRN;
+        }
+        else if (!strcmp(argv[i], "--glofcn") && i + 1 < argc) {
+            setglofcn(argv[++i], opt);
         }
         else if (!strcmp(argv[i],"-d" )&&i+1<argc) {
             *dir=argv[++i];
@@ -527,6 +588,10 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
         else if (!strcmp(argv[i],"-trace" )&&i+1<argc) {
             *trace=atoi(argv[++i]);
         }
+        else if (!strcmp(argv[i], "--version")) {
+            fprintf(stderr, "convbin RTKLIB %s %s\n", VER_RTKLIB, PATCH_LEVEL);
+            exit(0);
+        }
         else if (!strncmp(argv[i],"-",1)) printhelp();
         
         else *ifile=argv[i];
@@ -539,15 +604,20 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
     if (nf>=3) opt->freqtype|=FREQTYPE_L3;
     if (nf>=4) opt->freqtype|=FREQTYPE_L4;
     if (nf>=5) opt->freqtype|=FREQTYPE_L5;
+    if (nf>=6) opt->freqtype|=FREQTYPE_L6;
+    if (nf>=7) opt->freqtype|=FREQTYPE_ALL;
     
-    if (!opt->trtcm.time) {
-        get_filetime(*ifile,&opt->trtcm);
+    if (opt->trtcm.time == 0) {
+        // Use the start or end time if supplied. Otherwise use the file time.
+        if (opt->ts.time != 0) opt->trtcm = opt->ts;
+        else if (opt->te.time != 0) opt->trtcm = opt->te;
+        else get_filetime(*ifile, &opt->trtcm);
     }
     if (*fmt) {
         if      (!strcmp(fmt,"rtcm2")) format=STRFMT_RTCM2;
         else if (!strcmp(fmt,"rtcm3")) format=STRFMT_RTCM3;
         else if (!strcmp(fmt,"nov"  )) format=STRFMT_OEM4;
-        else if (!strcmp(fmt,"cnav" )) format=STRFMT_CNAV;
+        /* else if (!strcmp(fmt,"cnav" )) format=STRFMT_CNAV; */
         else if (!strcmp(fmt,"ubx"  )) format=STRFMT_UBX;
         else if (!strcmp(fmt,"sbp"  )) format=STRFMT_SBP;
         else if (!strcmp(fmt,"hemis")) format=STRFMT_CRES;
@@ -557,7 +627,8 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
         else if (!strcmp(fmt,"binex")) format=STRFMT_BINEX;
         else if (!strcmp(fmt,"rt17" )) format=STRFMT_RT17;
         else if (!strcmp(fmt,"sbf"  )) format=STRFMT_SEPT;
-        else if (!strcmp(fmt,"tersus")) format=STRFMT_TERSUS;
+        else if (!strcmp(fmt,"unicore")) format=STRFMT_UNICORE;
+        /* else if (!strcmp(fmt,"tersus")) format=STRFMT_TERSUS; */
         else if (!strcmp(fmt,"rinex")) format=STRFMT_RINEX;
     }
     else {
@@ -566,6 +637,7 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
         if      (!strcmp(p,".rtcm2"))  format=STRFMT_RTCM2;
         else if (!strcmp(p,".rtcm3"))  format=STRFMT_RTCM3;
         else if (!strcmp(p,".gps"  ))  format=STRFMT_OEM4;
+        /* else if (!strcmp(p,"cnav" )) format=STRFMT_CNAV; */
         else if (!strcmp(p,".ubx"  ))  format=STRFMT_UBX;
         else if (!strcmp(p,".sbp"  ))  format=STRFMT_SBP;
         else if (!strcmp(p,".bin"  ))  format=STRFMT_CRES;
@@ -575,7 +647,8 @@ static int cmdopts(int argc, char **argv, rnxopt_t *opt, char **ifile,
         else if (!strcmp(p,".binex"))  format=STRFMT_BINEX;
         else if (!strcmp(p,".rt17" ))  format=STRFMT_RT17;
         else if (!strcmp(p,".sbf"  ))  format=STRFMT_SEPT;
-        else if (!strcmp(p,".trs"  ))  format=STRFMT_TERSUS;
+        else if (!strcmp(p,".unc"  ))  format=STRFMT_UNICORE;
+        /* else if (!strcmp(p,".trs"  ))  format=STRFMT_TERSUS; */
         else if (!strcmp(p,".obs"  ))  format=STRFMT_RINEX;
         else if (!strcmp(p+3,"o"   ))  format=STRFMT_RINEX;
         else if (!strcmp(p+3,"O"   ))  format=STRFMT_RINEX;
@@ -598,19 +671,13 @@ int main(int argc, char **argv)
     
     if (!*ifile) {
         fprintf(stderr,"no input file\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     if (format<0) {
         fprintf(stderr,"input format can not be recognized\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     sprintf(opt.prog,"%s %s %s",PRGNAME,VER_RTKLIB,PATCH_LEVEL);
-    sprintf(opt.comment[0],"log: %-55.55s",ifile);
-    sprintf(opt.comment[1],"format: %s",formatstrs[format]);
-    if (*opt.rcvopt) {
-        strcat(opt.comment[1],", option: ");
-        strcat(opt.comment[1],opt.rcvopt);
-    }
     if (trace>0) {
         traceopen(TRACEFILE);
         tracelevel(trace);
@@ -619,5 +686,5 @@ int main(int argc, char **argv)
     
     traceclose();
     
-    return stat;
+    return stat?0:EXIT_FAILURE;
 }

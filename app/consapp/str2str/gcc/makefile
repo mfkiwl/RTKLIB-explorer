@@ -7,15 +7,16 @@ SRC    = ../../../../src
 #CTARGET= -mfpu=neon -mfloat-abi=softfp -ffast-math
 CTARGET=
 
-OPTION = -DENAGLO -DENAGAL -DENAQZS -DENACMP -DENAIRN -DTRACE -DNFREQ=5 -DNEXOBS=3 -DSVR_REUSEADDR
-CFLAGS = -Wall -O3 -ansi -pedantic -Wno-unused-but-set-variable -I$(SRC) $(OPTION) $(CTARGET) -g
-LDLIBS  = -lm -lrt -lpthread
+OPTION = -DENAGLO -DENAGAL -DENAQZS -DENACMP -DENAIRN -DTRACE -DNFREQ=4 -DNEXOBS=3 -DSVR_REUSEADDR
+CFLAGS = -std=c99 -Wall -O3 -pedantic -Wno-unused-but-set-variable -I$(SRC) $(OPTION) $(CTARGET) -g
+LDLIBS  = -lm -lpthread
 
 all        : str2str
-str2str    : str2str.o stream.o rtkcmn.o solution.o sbas.o geoid.o
+str2str    : str2str.o stream.o rtkcmn.o trace.o solution.o sbas.o geoid.o
 str2str    : rcvraw.o novatel.o ublox.o crescent.o skytraq.o javad.o
 str2str    : nvs.o binex.o rt17.o rtcm.o rtcm2.o rtcm3.o rtcm3e.o preceph.o streamsvr.o
-str2str    : septentrio.o swiftnav.o
+str2str    : septentrio.o swiftnav.o unicore.o
+str2str    : sofa.o
 
 str2str.o  : ../str2str.c
 	$(CC) -c $(CFLAGS) ../str2str.c
@@ -25,6 +26,8 @@ streamsvr.o: $(SRC)/streamsvr.c
 	$(CC) -c $(CFLAGS) $(SRC)/streamsvr.c
 rtkcmn.o   : $(SRC)/rtkcmn.c
 	$(CC) -c $(CFLAGS) $(SRC)/rtkcmn.c
+trace.o   : $(SRC)/trace.c
+	$(CC) -c $(CFLAGS) $(SRC)/trace.c
 solution.o : $(SRC)/solution.c
 	$(CC) -c $(CFLAGS) $(SRC)/solution.c
 sbas.o     : $(SRC)/sbas.c
@@ -65,11 +68,16 @@ septentrio.o: $(SRC)/rcv/septentrio.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/septentrio.c
 swiftnav.o: $(SRC)/rcv/swiftnav.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/swiftnav.c
+unicore.o: $(SRC)/rcv/unicore.c
+	$(CC) -c $(CFLAGS) $(SRC)/rcv/unicore.c
+sofa.o: $(SRC)/sofa.c
+	$(CC) -c $(CFLAGS) $(SRC)/sofa.c
 
 str2str.o  : $(SRC)/rtklib.h
 stream.o   : $(SRC)/rtklib.h
 streamsvr.o: $(SRC)/rtklib.h
 rtkcmn.o   : $(SRC)/rtklib.h
+trace.o    : $(SRC)/rtklib.h
 solution.o : $(SRC)/rtklib.h
 sbas.o     : $(SRC)/rtklib.h
 geoid.o    : $(SRC)/rtklib.h
@@ -90,6 +98,7 @@ rtcm3e.o   : $(SRC)/rtklib.h
 preceph.o  : $(SRC)/rtklib.h
 septentrio.o: $(SRC)/rtklib.h
 swiftnav.o  : $(SRC)/rtklib.h
+unicore.o  : $(SRC)/rtklib.h
 
 install:
 	cp str2str $(BINDIR)
@@ -118,4 +127,3 @@ test6:
 
 clean:
 	rm -f str2str str2str.exe *.o *.out *.trace
-

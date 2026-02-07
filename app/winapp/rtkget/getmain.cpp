@@ -241,7 +241,7 @@ void __fastcall TMainForm::BtnTestClick(TObject *Sender)
     abortf=0;
     Application->ProcessMessages();
     
-    dl_test(ts,te,ti,urls,nurl,stas,nsta,dir,NCol,DateFormat,fp);
+    dl_test(ts,te,ti,urls,nurl,(const char **)stas,nsta,dir,NCol,DateFormat,fp);
     
     BtnTest->Caption="&Test...";
     MsgLabel1->Font->Color=clBlack;
@@ -332,7 +332,7 @@ void __fastcall TMainForm::BtnDownloadClick(TObject *Sender)
     Timer->Enabled=true;
     Application->ProcessMessages();
     
-    dl_exec(ts,te,ti,seqnos,seqnoe,urls,nurl,stas,nsta,dir,usr.c_str(),
+    dl_exec(ts,te,ti,seqnos,seqnoe,urls,nurl,(const char **)stas,nsta,dir,usr.c_str(),
             pwd.c_str(),proxy.c_str(),opts,msg,fp);
     
     PanelEnable(1);
@@ -575,9 +575,9 @@ void __fastcall TMainForm::LoadOpt(void)
     AnsiString stas,s;
     char buff[8192],*p;
     
-    TimeY1->Text       =ini->ReadString ("opt","startd","2020/01/01");
+    TimeY1->Text       =ini->ReadString ("opt","startd","2025/01/01");
     TimeH1->Text       =ini->ReadString ("opt","starth",     "00:00");
-    TimeY2->Text       =ini->ReadString ("opt","endd",  "2020/01/01");
+    TimeY2->Text       =ini->ReadString ("opt","endd",  "2025/01/01");
     TimeH2->Text       =ini->ReadString ("opt","endh",       "00:00");
     TimeInt->Text      =ini->ReadString ("opt","timeint",      "24H");
     Number->Text       =ini->ReadString ("opt","number",         "0");
@@ -668,7 +668,6 @@ void __fastcall TMainForm::SaveOpt(void)
 //---------------------------------------------------------------------------
 void __fastcall TMainForm::LoadUrl(AnsiString file)
 {
-    FILE *fp;
     url_t *urls;
     char *p,*subtype,sel[]="*",*sels[]={sel};
     int i,j,n;
@@ -686,7 +685,7 @@ void __fastcall TMainForm::LoadUrl(AnsiString file)
     
     if (file=="") file=URL_FILE; // default url
     
-    n=dl_readurls(file.c_str(),sels,1,urls,MAX_URL);
+    n=dl_readurls(file.c_str(),(const char **)sels,1,urls,MAX_URL);
     
     for (i=0;i<n;i++) {
         Types ->Add(urls[i].type);
@@ -752,7 +751,7 @@ void __fastcall TMainForm::GetTime(gtime_t *ts, gtime_t *te, double *ti)
     *ti=86400.0;
     
     str=TimeInt->Text;
-    if (sscanf(str.c_str(),"%lf%s",&val,unit)>=1) {
+    if (sscanf(str.c_str(),"%lf%31s",&val,unit)>=1) {
         if      (!strcmp(unit,"day")) *ti=val*86400.0;
         else if (!strcmp(unit,"min")) *ti=val*60.0;
         else                          *ti=val*3600.0;
@@ -777,7 +776,7 @@ int __fastcall TMainForm::SelectUrl(url_t *urls)
     }
     if (UrlFile=="") file=URL_FILE;
     
-    nurl=dl_readurls(file.c_str(),types,nurl,urls,MAX_URL_SEL);
+    nurl=dl_readurls(file.c_str(),(const char **)types,nurl,urls,MAX_URL_SEL);
     
     for (i=0;i<MAX_URL_SEL;i++) delete [] types[i];
     

@@ -25,17 +25,15 @@ __fastcall TOptDialog::TOptDialog(TComponent* Owner)
     : TForm(Owner)
 {
     AnsiString label,s;
-    const char *freqs[]={"L1","L2","E5b","L5","E6","E5ab"};
     int nglo=MAXPRNGLO,ngal=MAXPRNGAL,nqzs=MAXPRNQZS,ncmp=MAXPRNCMP;
     int nirn=MAXPRNIRN;
     
-#if 0
     Freq->Items->Clear();
     for (int i=0;i<NFREQ;i++) {
-        label=label+(i>0?"+":"")+s.sprintf("%s",freqs[i]);
-        Freq->Items->Add(label);
+      label=label+(i>0?"+":"")+s.sprintf("L%d",i + 1);
+      Freq->Items->Add(label);
     }
-#endif
+
     if (nglo<=0) NavSys2->Enabled=false;
     if (ngal<=0) NavSys3->Enabled=false;
     if (nqzs<=0) NavSys4->Enabled=false;
@@ -83,7 +81,7 @@ void __fastcall TOptDialog::BtnStaPosViewClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TOptDialog::BtnStaPosFileClick(TObject *Sender)
 {
-	OpenDialog->Title="Station Postion File";
+	OpenDialog->Title="Station Position File";
 	OpenDialog->FilterIndex=3;
 	if (!OpenDialog->Execute()) return;
 	StaPosFile->Text=OpenDialog->FileName;
@@ -391,8 +389,8 @@ void __fastcall TOptDialog::GetOpt(void)
 	ElMaskAR	 ->Text			=s.sprintf("%.0f",MainForm->ElMaskAR);
 	ElMaskHold	 ->Text			=s.sprintf("%.0f",MainForm->ElMaskHold);
 	MaxAgeDiff	 ->Text			=s.sprintf("%.1f",MainForm->MaxAgeDiff);
-	RejectGdop   ->Text			=s.sprintf("%.1f",MainForm->RejectGdop);
-	RejectThres  ->Text			=s.sprintf("%.1f",MainForm->RejectThres);
+	RejectCode   ->Text			=s.sprintf("%.1f",MainForm->RejectCode);
+	RejectPhase  ->Text			=s.sprintf("%.1f",MainForm->RejectPhase);
 	VarHoldAmb   ->Text			=s.sprintf("%.4f",MainForm->VarHoldAmb);
 	GainHoldAmb  ->Text			=s.sprintf("%.4f",MainForm->GainHoldAmb);
 	SlipThres	 ->Text			=s.sprintf("%.3f",MainForm->SlipThres);
@@ -428,6 +426,7 @@ void __fastcall TOptDialog::GetOpt(void)
 	MeasErrR1	 ->Text			=s.sprintf("%.1f",MainForm->MeasErrR1);
 	MeasErrR2	 ->Text			=s.sprintf("%.1f",MainForm->MeasErrR2);
 	MeasErrR5	 ->Text			=s.sprintf("%.1f",MainForm->MeasErrR5);
+	MeasErrR6	 ->Text			=s.sprintf("%.1f",MainForm->MeasErrR6);
 	MeasErr2	 ->Text			=s.sprintf("%.3f",MainForm->MeasErr2);
 	MeasErr3	 ->Text			=s.sprintf("%.3f",MainForm->MeasErr3);
 	MeasErr4	 ->Text			=s.sprintf("%.3f",MainForm->MeasErr4);
@@ -526,18 +525,17 @@ void __fastcall TOptDialog::SetOpt(void)
 	MainForm->ElMaskAR	  	=ElMaskAR   ->Text.ToInt();
 	MainForm->ElMaskHold  	=ElMaskHold ->Text.ToInt();
 	MainForm->MaxAgeDiff  	=str2dbl(MaxAgeDiff ->Text);
-	MainForm->RejectGdop 	=str2dbl(RejectGdop ->Text);
-	MainForm->RejectThres 	=str2dbl(RejectThres->Text);
+	MainForm->RejectCode 	=str2dbl(RejectCode ->Text);
+	MainForm->RejectPhase 	=str2dbl(RejectPhase->Text);
 	MainForm->VarHoldAmb 	=str2dbl(VarHoldAmb->Text);
 	MainForm->GainHoldAmb 	=str2dbl(GainHoldAmb->Text);
 	MainForm->SlipThres   	=str2dbl(SlipThres  ->Text);
 	MainForm->DopThres   	=str2dbl(DopThres  ->Text);
-	//MainForm->ARIter	  	=ARIter		  ->Text.ToInt();
 	MainForm->NumIter	  	=NumIter	  ->Text.ToInt();
 	MainForm->MinFixSats	=MinFixSats	  ->Text.ToInt();
 	MainForm->MinHoldSats	=MinHoldSats  ->Text.ToInt();
 	MainForm->MinDropSats	=MinDropSats  ->Text.ToInt();
-    MainForm->ARFilter      =ARFilter   ->ItemIndex;
+	MainForm->ARFilter      =ARFilter     ->ItemIndex;
 	MainForm->MaxPosVarAR	=str2dbl(MaxPosVarAR->Text);
 	MainForm->BaseLine[0]  	=str2dbl(BaselineLen->Text);
 	MainForm->BaseLine[1]  	=str2dbl(BaselineSig->Text);
@@ -563,6 +561,7 @@ void __fastcall TOptDialog::SetOpt(void)
 	MainForm->MeasErrR1	  =str2dbl(MeasErrR1  ->Text);
 	MainForm->MeasErrR2	  =str2dbl(MeasErrR2  ->Text);
 	MainForm->MeasErrR5	  =str2dbl(MeasErrR5  ->Text);
+	MainForm->MeasErrR6	  =str2dbl(MeasErrR6  ->Text);
 	MainForm->MeasErr2	  =str2dbl(MeasErr2   ->Text);
 	MainForm->MeasErr3	  =str2dbl(MeasErr3   ->Text);
 	MainForm->MeasErr4	  =str2dbl(MeasErr4   ->Text);
@@ -616,12 +615,12 @@ void __fastcall TOptDialog::SetOpt(void)
 void __fastcall TOptDialog::LoadOpt(AnsiString file)
 {
 
-int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
+        int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 
 	TEdit *editu[]={RovPos1,RovPos2,RovPos3};
 	TEdit *editr[]={RefPos1,RefPos2,RefPos3};
 	AnsiString s;
-	char buff[1024]="",*p,id[32];
+	char buff[1024]="",*p,id[8];
 	int sat;
 	prcopt_t prcopt=prcopt_default;
 	solopt_t solopt=solopt_default;
@@ -637,7 +636,7 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	ElMask		 ->Text			=s.sprintf("%.0f",prcopt.elmin*R2D);
 	SnrMask						=prcopt.snrmask;
 	DynamicModel ->ItemIndex	=prcopt.dynamics;
-	TideCorr	 ->ItemIndex	=prcopt.tidecorr;
+	TideCorr	 ->ItemIndex	=prcopt.tidecorr > 1 ? 2 : prcopt.tidecorr;
 	IonoOpt		 ->ItemIndex	=prcopt.ionoopt;
 	TropOpt		 ->ItemIndex	=prcopt.tropopt;
 	SatEphem	 ->ItemIndex	=prcopt.sateph;
@@ -676,8 +675,8 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	ElMaskAR	 ->Text			=s.sprintf("%.0f",prcopt.elmaskar*R2D);
 	ElMaskHold	 ->Text			=s.sprintf("%.0f",prcopt.elmaskhold*R2D);
 	MaxAgeDiff	 ->Text			=s.sprintf("%.1f",prcopt.maxtdiff );
-	RejectGdop   ->Text			=s.sprintf("%.1f",prcopt.maxgdop  );
-	RejectThres  ->Text			=s.sprintf("%.1f",prcopt.maxinno  );
+	RejectCode   ->Text			=s.sprintf("%.1f",prcopt.maxinno[1] );
+	RejectPhase  ->Text			=s.sprintf("%.1f",prcopt.maxinno[0] );
 	VarHoldAmb   ->Text			=s.sprintf("%.5f",prcopt.varholdamb);
 	GainHoldAmb  ->Text			=s.sprintf("%.5f",prcopt.gainholdamb);
 	SlipThres	 ->Text			=s.sprintf("%.3f",prcopt.thresslip);
@@ -699,6 +698,7 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	FieldSep	 ->Text			=solopt.sep;
 	OutputHead	 ->ItemIndex	=solopt.outhead;
 	OutputOpt	 ->ItemIndex	=solopt.outopt;
+	OutputVel	 ->ItemIndex	=solopt.outvel;
 	OutputSingle ->ItemIndex    =prcopt.outsingle;
 	MaxSolStd	 ->Text		    =s.sprintf("%.2g",solopt.maxsolstd);
 	OutputDatum  ->ItemIndex	=solopt.datum;
@@ -713,6 +713,7 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	MeasErrR1	 ->Text			=s.sprintf("%.1f",prcopt.eratio[0]);
 	MeasErrR2	 ->Text			=s.sprintf("%.1f",prcopt.eratio[1]);
 	MeasErrR5	 ->Text			=s.sprintf("%.1f",prcopt.eratio[2]);
+	MeasErrR6	 ->Text			=s.sprintf("%.1f",prcopt.eratio[3]);
 	MeasErr2	 ->Text			=s.sprintf("%.3f",prcopt.err[1]);
 	MeasErr3	 ->Text			=s.sprintf("%.3f",prcopt.err[2]);
 	MeasErr4	 ->Text			=s.sprintf("%.3f",prcopt.err[3]);
@@ -744,8 +745,8 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	
 	IntpRefObs	 ->ItemIndex	=prcopt.intpref;
 	SbasSat		 ->Text			=s.sprintf("%d",prcopt.sbassatsel);
-	RovPosType	 ->ItemIndex	=prcopt.rovpos==0?0:prcopt.rovpos+2;
-	RefPosType	 ->ItemIndex	=prcopt.refpos==0?0:prcopt.refpos+2;
+        RovPosType->ItemIndex = prcopt.rovpos == POSOPT_POS_LLH ? 0 : prcopt.rovpos == POSOPT_POS_XYZ ? 2 : prcopt.rovpos + 1;
+        RefPosType->ItemIndex = prcopt.refpos == POSOPT_POS_LLH ? 0 : prcopt.refpos == POSOPT_POS_XYZ ? 2 : prcopt.refpos + 1;
 	RovPosTypeP					=RovPosType->ItemIndex;
 	RefPosTypeP					=RefPosType->ItemIndex;
 	SetPos(RovPosType->ItemIndex,editu,prcopt.ru);
@@ -784,7 +785,7 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	AnsiString PPPOpts_Text=PPPOpts->Text;
 	TEdit *editu[]={RovPos1,RovPos2,RovPos3};
 	TEdit *editr[]={RefPos1,RefPos2,RefPos3};
-	char buff[1024],*p,id[32],comment[256],s[64];
+	char buff[1024],*p,id[32],comment[256],s[40];
 	int sat,ex;
 	prcopt_t prcopt=prcopt_default;
 	solopt_t solopt=solopt_default;
@@ -797,6 +798,7 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	prcopt.snrmask	=SnrMask;
 	prcopt.dynamics	=DynamicModel->ItemIndex;
 	prcopt.tidecorr	=TideCorr	 ->ItemIndex;
+	if (prcopt.tidecorr > 1) prcopt.tidecorr = 7;
 	prcopt.ionoopt	=IonoOpt	 ->ItemIndex;
 	prcopt.tropopt	=TropOpt	 ->ItemIndex;
 	prcopt.sateph	=SatEphem	 ->ItemIndex;
@@ -837,8 +839,8 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	prcopt.elmaskar	=str2dbl(ElMaskAR	->Text)*D2R;
 	prcopt.elmaskhold=str2dbl(ElMaskHold->Text)*D2R;
 	prcopt.maxtdiff	=str2dbl(MaxAgeDiff	->Text);
-	prcopt.maxgdop	=str2dbl(RejectGdop ->Text);
-	prcopt.maxinno	=str2dbl(RejectThres->Text);
+	prcopt.maxinno[1]=str2dbl(RejectCode ->Text);
+	prcopt.maxinno[0]=str2dbl(RejectPhase->Text);
 	prcopt.varholdamb=str2dbl(VarHoldAmb->Text);
 	prcopt.gainholdamb=str2dbl(GainHoldAmb->Text);
 	prcopt.thresslip=str2dbl(SlipThres	->Text);
@@ -849,18 +851,19 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	prcopt.mindropsats=str2dbl(MinDropSats->Text);
 	prcopt.arfilter	=ARFilter->ItemIndex;
 	prcopt.niter	=str2dbl(NumIter	->Text);
-	if (prcopt.mode==PMODE_MOVEB&&BaselineConst->Checked) {
+	if (BaselineConst->Checked) {
 		prcopt.baseline[0]=str2dbl(BaselineLen->Text);
 		prcopt.baseline[1]=str2dbl(BaselineSig->Text);
 	}
 	solopt.posf		=SolFormat	->ItemIndex;
 	solopt.timef	=TimeFormat	->ItemIndex==0?0:1;
-	solopt.times	=TimeFormat	->ItemIndex==0?0:TimeFormat->ItemIndex-1;
+	solopt.times	=TimeFormat	->ItemIndex==0?TIMES_GPST:(TimeFormat->ItemIndex - 1);
 	solopt.timeu	=str2dbl(TimeDecimal ->Text);
 	solopt.degf		=LatLonFormat->ItemIndex;
 	strcpy(solopt.sep,FieldSep_Text.c_str());
 	solopt.outhead	=OutputHead	 ->ItemIndex;
 	solopt.outopt	=OutputOpt	 ->ItemIndex;
+    solopt.outvel	=OutputVel	 ->ItemIndex;
 	prcopt.outsingle=OutputSingle->ItemIndex;
 	solopt.maxsolstd=str2dbl(MaxSolStd->Text);
 	solopt.datum	=OutputDatum ->ItemIndex;
@@ -875,6 +878,7 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	prcopt.eratio[0]=str2dbl(MeasErrR1->Text);
 	prcopt.eratio[1]=str2dbl(MeasErrR2->Text);
 	prcopt.eratio[2]=str2dbl(MeasErrR5->Text);
+	prcopt.eratio[3]=str2dbl(MeasErrR6->Text);
 	prcopt.err[1]	=str2dbl(MeasErr2->Text);
 	prcopt.err[2]	=str2dbl(MeasErr3->Text);
 	prcopt.err[3]	=str2dbl(MeasErr4->Text);
@@ -900,10 +904,12 @@ int ppp=PosMode->ItemIndex>=PMODE_PPP_KINEMA;
 	
 	prcopt.intpref	=IntpRefObs->ItemIndex;
 	prcopt.sbassatsel=SbasSat->Text.ToInt();
-	prcopt.rovpos=RovPosType->ItemIndex<3?0:RovPosType->ItemIndex-2;
-	prcopt.refpos=RefPosType->ItemIndex<3?0:RefPosType->ItemIndex-2;
-	if (prcopt.rovpos==0) GetPos(RovPosType->ItemIndex,editu,prcopt.ru);
-	if (prcopt.refpos==0) GetPos(RefPosType->ItemIndex,editr,prcopt.rb);
+        prcopt.rovpos = RovPosType->ItemIndex < 2 ? POSOPT_POS_LLH : RovPosType->ItemIndex == 2 ? POSOPT_POS_XYZ : (RovPosType->ItemIndex - 1);
+        prcopt.refpos = RefPosType->ItemIndex < 2 ? POSOPT_POS_LLH : RefPosType->ItemIndex == 2 ? POSOPT_POS_XYZ : (RefPosType->ItemIndex - 1);
+        if (prcopt.rovpos == POSOPT_POS_LLH || prcopt.rovpos == POSOPT_POS_XYZ)
+          GetPos(RovPosType->ItemIndex, editu, prcopt.ru);
+        if (prcopt.refpos == POSOPT_POS_LLH || prcopt.refpos == POSOPT_POS_XYZ)
+          GetPos(RefPosType->ItemIndex, editr, prcopt.rb);
 	
 	strcpy(prcopt.rnxopt[0],RnxOpts1_Text.c_str());
 	strcpy(prcopt.rnxopt[1],RnxOpts2_Text.c_str());
@@ -937,8 +943,8 @@ void __fastcall TOptDialog::UpdateEnable(void)
 	                         PosMode->ItemIndex==PMODE_PPP_KINEMA;
 	TideCorr       ->Enabled=rel||ppp;
 	//IonoOpt        ->Enabled=!ppp;
-	PosOpt1        ->Enabled=ppp;
-	PosOpt2        ->Enabled=ppp;
+	PosOpt1        ->Enabled=rel||ppp;
+	PosOpt2        ->Enabled=rel||ppp;
 	PosOpt3        ->Enabled=ppp;
 	PosOpt4        ->Enabled=ppp;
 	PosOpt6        ->Enabled=ppp;
@@ -958,7 +964,8 @@ void __fastcall TOptDialog::UpdateEnable(void)
 	SlipThres      ->Enabled=rtk||ppp;
 	DopThres      ->Enabled=rtk||ppp;
 	MaxAgeDiff     ->Enabled=rel;
-	RejectThres    ->Enabled=rel||ppp;
+	RejectPhase    ->Enabled=rel||ppp;
+    RejectCode     ->Enabled=rel||ppp;
 	VarHoldAmb     ->Enabled=ar;
 	GainHoldAmb    ->Enabled=ar&&AmbRes->ItemIndex==3;
 	//ARIter         ->Enabled=ppp;
@@ -969,9 +976,9 @@ void __fastcall TOptDialog::UpdateEnable(void)
 	MinDropSats    ->Enabled=rel;
 	MaxPosVarAR    ->Enabled=ar&&!ppp;
 	ARFilter       ->Enabled=ar;
-	BaselineConst  ->Enabled=PosMode->ItemIndex==PMODE_MOVEB;
-	BaselineLen    ->Enabled=BaselineConst->Checked&&PosMode->ItemIndex==PMODE_MOVEB;
-	BaselineSig    ->Enabled=BaselineConst->Checked&&PosMode->ItemIndex==PMODE_MOVEB;
+	BaselineConst  ->Enabled=rel;
+	BaselineLen    ->Enabled=BaselineConst->Checked;
+	BaselineSig    ->Enabled=BaselineConst->Checked;
 	
 	OutputHead     ->Enabled=SolFormat->ItemIndex<3;
 	OutputOpt      ->Enabled=SolFormat->ItemIndex<3;
@@ -986,18 +993,23 @@ void __fastcall TOptDialog::UpdateEnable(void)
 	SolStatic      ->Enabled=PosMode->ItemIndex==PMODE_STATIC||
 	PosMode        ->ItemIndex==PMODE_PPP_STATIC;
 	
+        // For rtkpost, and when setting the antenna and delta automatically,
+        // this should occur before processing, so disable the delta setting
+        // here in that case.
 	RovAntPcv      ->Enabled=rel||ppp;
 	RovAnt         ->Enabled=(rel||ppp)&&RovAntPcv->Checked;
-	RovAntE        ->Enabled=(rel||ppp)&&RovAntPcv->Checked&&RovAnt->Text!="*";
-	RovAntN        ->Enabled=(rel||ppp)&&RovAntPcv->Checked&&RovAnt->Text!="*";
-	RovAntU        ->Enabled=(rel||ppp)&&RovAntPcv->Checked&&RovAnt->Text!="*";
-	LabelRovAntD   ->Enabled=(rel||ppp)&&RovAntPcv->Checked&&RovAnt->Text!="*";
+        int rovp = !RovAntPcv->Checked || RovAnt->Text != "*";
+	RovAntE        ->Enabled=(rel||ppp)&&rovp;
+	RovAntN        ->Enabled=(rel||ppp)&&rovp;
+	RovAntU        ->Enabled=(rel||ppp)&&rovp;
+	LabelRovAntD   ->Enabled=(rel||ppp)&&rovp;
 	RefAntPcv      ->Enabled=rel;
 	RefAnt         ->Enabled=rel&&RefAntPcv->Checked;
-	RefAntE        ->Enabled=rel&&RefAntPcv->Checked&&RefAnt->Text!="*";
-	RefAntN        ->Enabled=rel&&RefAntPcv->Checked&&RefAnt->Text!="*";
-	RefAntU        ->Enabled=rel&&RefAntPcv->Checked&&RefAnt->Text!="*";
-	LabelRefAntD   ->Enabled=rel&&RefAntPcv->Checked&&RefAnt->Text!="*";
+        int refp = !RefAntPcv->Checked || RefAnt->Text != "*";
+	RefAntE        ->Enabled=rel&&refp;
+	RefAntN        ->Enabled=rel&&refp;
+	RefAntU        ->Enabled=rel&&refp;
+	LabelRefAntD   ->Enabled=rel&&refp;
 	
 	RovPosType     ->Enabled=PosMode->ItemIndex==PMODE_FIXED||PosMode->ItemIndex==PMODE_PPP_FIXED;
 	RovPos1        ->Enabled=RovPosType->Enabled&&RovPosType->ItemIndex<=2;
@@ -1075,22 +1087,21 @@ void __fastcall TOptDialog::ReadAntList(void)
 	pcvs_t pcvs={0};
 	char *p;
 	
-	if (!readpcv(AntPcvFile_Text.c_str(),&pcvs)) return;
-	
 	list=new TStringList;
 	list->Add("");
 	list->Add("*");
 	
-	for (int i=0;i<pcvs.n;i++) {
-		if (pcvs.pcv[i].sat) continue;
-		if ((p=strchr(pcvs.pcv[i].type,' '))) *p='\0';
-		if (i>0&&!strcmp(pcvs.pcv[i].type,pcvs.pcv[i-1].type)) continue;
-		list->Add(pcvs.pcv[i].type);
-	}
+	if (readpcv(AntPcvFile_Text.c_str(),&pcvs)) {
+          for (int i=0;i<pcvs.n;i++) {
+            if (pcvs.pcv[i].sat) continue;
+            if ((p=strchr(pcvs.pcv[i].type,' '))) *p='\0';
+            if (i>0&&!strcmp(pcvs.pcv[i].type,pcvs.pcv[i-1].type)) continue;
+            list->Add(pcvs.pcv[i].type);
+          }
+          free_pcvs(&pcvs);
+        }
 	RovAnt->Items=list;
 	RefAnt->Items=list;
-	
-	free(pcvs.pcv);
 }
 //---------------------------------------------------------------------------
 void __fastcall TOptDialog::BtnHelpClick(TObject *Sender)
@@ -1114,7 +1125,7 @@ void __fastcall TOptDialog::ExtEna2Click(TObject *Sender)
 	UpdateEnable();
 }
 //---------------------------------------------------------------------------
-void __fastcall TOptDialog::BtnMaskClick(TObject *Sender)
+void __fastcall TOptDialog::BtnSnrMaskClick(TObject *Sender)
 {
 	MaskOptDialog->Mask=SnrMask;
 	if (MaskOptDialog->ShowModal()!=mrOk) return;
@@ -1131,6 +1142,7 @@ void __fastcall TOptDialog::BtnFreqClick(TObject *Sender)
     FreqDialog->ShowModal();
 }
 //---------------------------------------------------------------------------
+
 
 
 

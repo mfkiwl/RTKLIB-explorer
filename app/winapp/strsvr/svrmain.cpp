@@ -375,9 +375,10 @@ void __fastcall TMainForm::Timer1Timer(TObject *Sender)
 	}
 	pos=fmod(byte[0]/1e3/MAX(ProgBarRange,1),1.0)*110.0;
 	Progress->Position=!stat[0]?0:MIN((int)pos,100);
-	
-	time2str(time,s1,0);
-	Time->Caption=s.sprintf("%s GPST",s1);
+
+        char tstr[40];
+	time2str(time,tstr,0);
+	Time->Caption=s.sprintf("%s GPST",tstr);
 	
 	if (Panel1->Enabled) {
 		ctime=timediff(EndTime,StartTime);
@@ -495,7 +496,7 @@ void __fastcall TMainForm::SvrStart(void)
 		matcpy(conv[i]->out.sta.del,AntOff,3,1);
 	}
 	// stream server start
-	if (!strsvrstart(&strsvr,opt,strs,paths,logs,conv,cmds,cmds_periodic,AntPos)) {
+	if (!strsvrstart(&strsvr,opt,strs,(const char **)paths,(const char **)logs,conv,(const char **)cmds,(const char **)cmds_periodic,AntPos)) {
 		return;
 	}
 	StartTime=utc2gpst(timeget());
@@ -536,7 +537,7 @@ void __fastcall TMainForm::SvrStop(void)
 			if (CmdEnaTcp[i][1]) cmds[i]=MainForm->CmdsTcp[i][1].c_str();
 		}
 	}
-	strsvrstop(&strsvr,cmds);
+	strsvrstop(&strsvr,(const char **)cmds);
 	
 	EndTime=utc2gpst(timeget());
 	Panel1	  ->Enabled=true;
@@ -558,8 +559,8 @@ void __fastcall TMainForm::SvrStop(void)
 void __fastcall TMainForm::Timer2Timer(TObject *Sender)
 {
 	const char *types[]={
-		"None","Serial","File","TCP Server","TCP Client","Ntrip Sever",
-		"Ntrip Client","FTP","HTTP","Ntrip Cast","UDP Sever","UDP Client"
+		"None","Serial","File","TCP Server","TCP Client","Ntrip Server",
+		"Ntrip Client","FTP","HTTP","Ntrip Cast","UDP Server","UDP Client"
 	};
 	const char *modes[]={"-","R","W","R/W"};
 	const char *states[]={"ERR","-","WAIT","CONN"};
@@ -568,13 +569,13 @@ void __fastcall TMainForm::Timer2Timer(TObject *Sender)
 	int i,len,inb,inr,outb,outr;
 	
 	if (StrMonDialog->StrFmt) {
-		lock(&strsvr.lock);
+		rtklib_lock(&strsvr.lock);
 		len=strsvr.npb;
 		if (len>0&&(msg=(char *)malloc(len))) {
 			memcpy(msg,strsvr.pbuf,len);
 			strsvr.npb=0;
 		}
-		unlock(&strsvr.lock);
+		rtklib_unlock(&strsvr.lock);
 		if (len<=0||!msg) return;
 		StrMonDialog->AddMsg((uint8_t *)msg,len);
 		free(msg);

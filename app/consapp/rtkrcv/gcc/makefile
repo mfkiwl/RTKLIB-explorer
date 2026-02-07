@@ -3,19 +3,20 @@
 BINDIR = /usr/local/bin
 SRC    = ../../../../src
 
-CTARGET= -DTRACE -DENAGLO -DENAQZS -DENACMP -DENAGAL -DENAIRN -DNFREQ=3 -DSVR_REUSEADDR
-#CTARGET= -DENAGLO -DENAQZS -DENACMP -DENAGAL -DENAIRN -DNFREQ=3 -DIERS_MODEL -DSVR_REUSEADDR
+CTARGET= -DTRACE -DENAGLO -DENAQZS -DENACMP -DENAGAL -DENAIRN -DNFREQ=4 -DNEXOBS=3 -DSVR_REUSEADDR
+#CTARGET= -DENAGLO -DENAQZS -DENACMP -DENAGAL -DENAIRN -DNFREQ=4 -DIERS_MODEL -DSVR_REUSEADDR
 
-CFLAGS = -Wall -O3 -ansi -pedantic -Wno-unused-but-set-variable -I$(SRC) -I.. -DTRACE $(CTARGET) -g
-LDLIBS  = -lm -lrt -lpthread
+CFLAGS = -std=c99 -Wall -O3 -pedantic -Wno-unused-but-set-variable -I$(SRC) -I.. -DTRACE $(CTARGET) -g
 #LDLIBS  = ../../../lib/iers/gcc/iers.a -lm -lrt -lpthread
+LDLIBS = -lm -lpthread
 
 all        : rtkrcv
-rtkrcv     : rtkrcv.o vt.o rtkcmn.o rtksvr.o rtkpos.o geoid.o solution.o lambda.o
+rtkrcv     : rtkrcv.o vt.o rtkcmn.o trace.o rtksvr.o rtkpos.o geoid.o solution.o lambda.o
 rtkrcv     : sbas.o stream.o rcvraw.o rtcm.o preceph.o options.o pntpos.o ppp.o ppp_ar.o
 rtkrcv     : novatel.o ublox.o crescent.o skytraq.o javad.o nvs.o binex.o
 rtkrcv     : rt17.o ephemeris.o rinex.o ionex.o rtcm2.o rtcm3.o rtcm3e.o
-rtkrcv     : tides.o septentrio.o swiftnav.o
+rtkrcv     : tides.o septentrio.o swiftnav.o unicore.o
+rtkrcv     : sofa.o
 
 
 rtkrcv.o   : ../rtkrcv.c
@@ -24,6 +25,8 @@ vt.o       : ../vt.c
 	$(CC) -c $(CFLAGS) ../vt.c
 rtkcmn.o   : $(SRC)/rtkcmn.c
 	$(CC) -c $(CFLAGS) $(SRC)/rtkcmn.c
+trace.o   : $(SRC)/trace.c
+	$(CC) -c $(CFLAGS) $(SRC)/trace.c
 rtksvr.o   : $(SRC)/rtksvr.c
 	$(CC) -c $(CFLAGS) $(SRC)/rtksvr.c
 rtkpos.o   : $(SRC)/rtkpos.c
@@ -86,15 +89,22 @@ tides.o    : $(SRC)/tides.c
 	$(CC) -c $(CFLAGS) $(SRC)/tides.c
 septentrio.o: $(SRC)/rcv/septentrio.c
 	$(CC) -c $(CFLAGS) $(SRC)/rcv/septentrio.c
+unicore.o: $(SRC)/rcv/unicore.c
+	$(CC) -c $(CFLAGS) $(SRC)/rcv/unicore.c
+sofa.o     : $(SRC)/sofa.c
+	$(CC) -c $(CFLAGS) $(SRC)/sofa.c
 
 rtkrcv.o   : $(SRC)/rtklib.h ../vt.h
+vt.o       : ../vt.h
 rtkcmn.o   : $(SRC)/rtklib.h
+trace.o    : $(SRC)/rtklib.h
 rtksvr.o   : $(SRC)/rtklib.h
 rtkpos.o   : $(SRC)/rtklib.h
 geoid.o    : $(SRC)/rtklib.h
 solution.o : $(SRC)/rtklib.h
 lambda.o   : $(SRC)/rtklib.h
 sbas.o     : $(SRC)/rtklib.h
+stream.o   : $(SRC)/rtklib.h
 rcvraw.o   : $(SRC)/rtklib.h
 rtcm.o     : $(SRC)/rtklib.h
 rtcm2.o    : $(SRC)/rtklib.h
@@ -115,6 +125,7 @@ nvs.o      : $(SRC)/rtklib.h
 binex.o    : $(SRC)/rtklib.h
 rt17.o     : $(SRC)/rtklib.h
 septentrio.o: $(SRC)/rtklib.h
+unciore.o  : $(SRC)/rtklib.h
 ephemeris.o: $(SRC)/rtklib.h
 rinex.o    : $(SRC)/rtklib.h
 ionex.o    : $(SRC)/rtklib.h
@@ -134,4 +145,3 @@ test3:
 
 clean:
 	rm -f rtkrcv rtkrcv.exe rtkrcv.nav *.o *.out *.trace
-

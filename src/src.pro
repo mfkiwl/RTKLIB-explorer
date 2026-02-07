@@ -6,27 +6,37 @@
 
 QT       -= core gui
 
-TARGET = RTKLib
 TEMPLATE = lib
+TARGET = RTKLib
 
 DEFINES -= UNICODE TRACE
 
 include(../RTKLib.pri)
 
 *g++* {
-    QMAKE_CFLAGS += -Wall -ansi -pedantic -Wno-unused-but-set-variable -g
+    QMAKE_CFLAGS += -std=c99 -Wall -pedantic -Wno-unused-but-set-variable -g
+    QMAKE_LFLAGS += -Wl,-z,undefs
 }
 
 win* {
     CONFIG += staticlib
 }
+
+macx {
+    CONFIG += staticlib
+}
+
+
 *msvc* {
     QMAKE_CFLAGS += -D_CRT_SECURE_NO_WARNINGS
 }
 
-DESTDIR = ../lib
+ROOT_DIRECTORY = $${PWD}/..
+
+DESTDIR = $${ROOT_DIRECTORY}/lib
 
 SOURCES += rtkcmn.c \
+    trace.c \
     convkml.c \
     convrnx.c \
     convgpx.c \
@@ -56,6 +66,7 @@ SOURCES += rtkcmn.c \
     stream.c \
     streamsvr.c \
     tides.c \
+    sofa.c \
     tle.c \
     rcv/binex.c \
     rcv/crescent.c \
@@ -65,8 +76,9 @@ SOURCES += rtkcmn.c \
     rcv/rt17.c \
     rcv/septentrio.c \
     rcv/skytraq.c \
-	rcv/swiftnav.c \
-    rcv/ublox.c 
+    rcv/swiftnav.c \
+    rcv/ublox.c \
+    rcv/unicore.c 
 
 HEADERS += rtklib.h
 

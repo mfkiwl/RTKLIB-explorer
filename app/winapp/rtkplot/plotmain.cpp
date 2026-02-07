@@ -72,7 +72,6 @@ TPlot *Plot;
 __fastcall TPlot::TPlot(TComponent* Owner) : TForm(Owner)
 {
     gtime_t t0={0};
-    nav_t nav0={0};
     obs_t obs0={0};
     sta_t sta0={0};
     gis_t gis0={0};
@@ -97,9 +96,11 @@ __fastcall TPlot::TPlot(TComponent* Owner) : TForm(Owner)
         SolStat[i]=solstat0;
         SolIndex[i]=0;
     }
+
+    obs0.data=NULL; obs0.n =obs0.nmax =0;
     ObsIndex=0;
     Obs=obs0;
-    Nav=nav0;
+    memset(&Nav, 0, sizeof(Nav));
     Sta=sta0;
     Gis=gis0;
     SimObs=0;
@@ -366,7 +367,7 @@ void __fastcall TPlot::DropFiles(TWMDropFiles msg)
         if (PlotType==PLOT_TRK) {
             ReadMapData(file);
         }
-        else if (PlotType==PLOT_SKY||PlotType==PLOT_MPS) {
+        else if (PlotType==PLOT_SKY||PlotType==PLOT_SSKY||PlotType==PLOT_MPS) {
             ReadSkyData(file);
         }
     }
@@ -1192,7 +1193,7 @@ void __fastcall TPlot::RangeListClick(TObject *Sender)
     if ((i=RangeList->ItemIndex)<0) return;
     
     str=RangeList->Items->Strings[i];
-    if (sscanf(str.c_str(),"%lf%s",&YRange,unit)<1) return;
+    if (sscanf(str.c_str(),"%lf%31s",&YRange,unit)<1) return;
     if      (!strcmp(unit,"cm")) YRange*=0.01;
     else if (!strcmp(unit,"km")) YRange*=1000.0;
     
@@ -1361,7 +1362,7 @@ void __fastcall TPlot::TimeScrollChange(TObject *Sender)
     
     trace(3,"TimeScrollChange\n");
     
-    if (PlotType<=PLOT_NSAT||PlotType==PLOT_RES) {
+    if (PlotType<=PLOT_SDOP||PlotType==PLOT_RES) {
         SolIndex[sel]=TimeScroll->Position;
     }
     else {
@@ -1389,7 +1390,7 @@ void __fastcall TPlot::DispMouseDown(TObject *Sender, TMouseButton Button,
     if (PlotType==PLOT_TRK) {
         MouseDownTrk(X,Y);
     }
-    else if (PlotType<=PLOT_NSAT||PlotType==PLOT_RES||PlotType==PLOT_SNR) {
+    else if (PlotType<=PLOT_SDOP||PlotType==PLOT_RES||PlotType==PLOT_SNR) {
         MouseDownSol(X,Y);
     }
     else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP) {
@@ -1420,7 +1421,7 @@ void __fastcall TPlot::DispMouseMove(TObject *Sender, TShiftState Shift, int X, 
     else if (PlotType==PLOT_TRK) {
         MouseMoveTrk(X,Y,dx,dy,dxs,dys);
     }
-    else if (PlotType<=PLOT_NSAT||PlotType==PLOT_RES||PlotType==PLOT_SNR) {
+    else if (PlotType<=PLOT_SDOP||PlotType==PLOT_RES||PlotType==PLOT_SNR) {
         MouseMoveSol(X,Y,dx,dy,dxs,dys);
     }
     else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP) {
@@ -1459,7 +1460,7 @@ void __fastcall TPlot::DispDblClick(TObject *Sender)
         SetCentX(x);
         Refresh();
     }
-    else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP) {
+    else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP||PlotType==PLOT_SDOP) {
         GraphR->ToPos(p,x,y);
         SetCentX(x);
         Refresh();
@@ -1742,7 +1743,7 @@ void __fastcall TPlot::MouseWheel(TObject *Sender, TShiftState Shift,
             }
         }
     }
-    else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP) {
+    else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP||PlotType==PLOT_SDOP) {
         area=GraphR->OnAxis(p);
         if (area==0||area==8) {
             GraphR->GetScale(xs,ys);
@@ -1819,7 +1820,7 @@ void __fastcall TPlot::FormKeyDown(TObject *Sender, WORD &Key,
         GraphG[1]->SetScale(xs,ys2);
         GraphG[2]->SetScale(xs,ys3);
     }
-    else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP||PlotType==PLOT_SNR) {
+    else if (PlotType==PLOT_OBS||PlotType==PLOT_DOP||PlotType==PLOT_SDOP||PlotType==PLOT_SNR) {
         GraphR->GetCent(xc,yc);
         GraphR->GetScale(xs,ys);
         if (key== 1) {if (!BtnFixVert ->Down) yc+=fact*ys;}
@@ -1850,7 +1851,7 @@ void __fastcall TPlot::TimerTimer(TObject *Sender)
     double tint=TimeEna[2]?TimeInt:0.0,pos[3],ep[6];
     int i,j,n,inb,inr,cycle,nmsg[2]={0},stat,istat;
     int sel=!BtnSol1->Down&&BtnSol2->Down?1:0;
-    char msg[MAXSTRMSG]="",tstr[32];
+    char msg[MAXSTRMSG]="",tstr[40];
     
     trace(4,"TimeTimer\n");
     
@@ -1862,7 +1863,7 @@ void __fastcall TPlot::TimerTimer(TObject *Sender)
     if (ConnectState) { // real-time input mode
         for (i=0;i<2;i++) {
             opt.posf =RtFormat[i];
-            opt.times=RtTimeForm==0?0:RtTimeForm-1;
+            opt.times=RtTimeForm==0?TIMES_GPST:(RtTimeForm - 1);
             opt.timef=RtTimeForm>=1;
             opt.degf =RtDegForm;
             strcpy(opt.sep,RtFieldSep.c_str());
@@ -1875,7 +1876,7 @@ void __fastcall TPlot::TimerTimer(TObject *Sender)
             while ((n=strread(Stream+i,buff,sizeof(buff)))>0) {
                 
                 for (j=0;j<n;j++) {
-                    istat=inputsol(buff[j],ts,ts,tint,0,&opt,SolData+i);
+                    istat=inputsol(buff[j],ts,ts,tint,SOLQ_NONE,&opt,SolData+i);
                     if (istat==0) continue;
                     if (istat<0) { // disconnect received
                         Disconnect();
@@ -1906,7 +1907,7 @@ void __fastcall TPlot::TimerTimer(TObject *Sender)
     else if (BtnAnimate->Enabled&&BtnAnimate->Down) { // animation mode
         cycle=AnimCycle<=0?1:AnimCycle;
         
-        if (PlotType<=PLOT_NSAT||PlotType==PLOT_RES) {
+        if (PlotType<=PLOT_SDOP||PlotType==PLOT_RES) {
             SolIndex[sel]+=cycle;
             if (SolIndex[sel]>=SolData[sel].n-1) {
                 SolIndex[sel]=SolData[sel].n-1;
@@ -1937,7 +1938,7 @@ void __fastcall TPlot::TimerTimer(TObject *Sender)
                 NStrBuff = 0;
             }
         }
-        if (time.time&&(PlotType<=PLOT_NSAT||PlotType<=PLOT_RES)) {
+        if (time.time&&(PlotType<=PLOT_SDOP||PlotType<=PLOT_RES)) {
            i=SolIndex[sel];
            if (!(sol=getsol(SolData+sel,i))) return;
            double tt=timediff(sol->time,time);
@@ -2082,7 +2083,7 @@ void __fastcall TPlot::UpdateTime(void)
     trace(3,"UpdateTime\n");
     
     // time-cursor change on solution-plot
-    if (PlotType<=PLOT_NSAT||PlotType<=PLOT_RESE) {
+    if (PlotType<=PLOT_SDOP||PlotType<=PLOT_RESE) {
         TimeScroll->Max=MAX(1,SolData[sel].n-1);
         TimeScroll->Position=SolIndex[sel];
         if (!(sol=getsol(SolData+sel,SolIndex[sel]))) return;
@@ -2238,7 +2239,7 @@ void __fastcall TPlot::UpdateSatMask(void)
 void __fastcall TPlot::UpdateSatSel(void)
 {
     AnsiString SatListText=SatList->Text;
-    char id[16];
+    char id[8];
     int i,sys=0;
     
     if      (SatListText=="G") sys=SYS_GPS;
@@ -2269,17 +2270,18 @@ void __fastcall TPlot::UpdateEnable(void)
     
     BtnConnect     ->Down   = ConnectState;
     BtnSol1        ->Enabled=true;
-    BtnSol2        ->Enabled=PlotType<=PLOT_NSAT||PlotType==PLOT_RES||PlotType==PLOT_RESE;
+    BtnSol2        ->Enabled=PlotType<=PLOT_SDOP||PlotType==PLOT_RES||PlotType==PLOT_RESE;
     BtnSol12       ->Enabled=!ConnectState&&PlotType<=PLOT_SOLA&&SolData[0].n>0&&SolData[1].n>0;
     QFlag          ->Visible=PlotType==PLOT_TRK ||PlotType==PLOT_SOLP||
                              PlotType==PLOT_SOLV||PlotType==PLOT_SOLA||
                              PlotType==PLOT_NSAT;
     ObsType        ->Visible=PlotType==PLOT_OBS||PlotType==PLOT_SKY;
     ObsType2       ->Visible=PlotType==PLOT_SNR||PlotType==PLOT_SNRE||PlotType==PLOT_MPS;
-    FrqType        ->Visible=PlotType==PLOT_RES||PlotType==PLOT_RESE;
-    DopType        ->Visible=PlotType==PLOT_DOP;
+    FrqType        ->Visible=PlotType==PLOT_SSKY||PlotType==PLOT_RES||PlotType==PLOT_RESE;
+    DopType        ->Visible=PlotType==PLOT_DOP||PlotType==PLOT_SDOP;
     SatList        ->Visible=PlotType==PLOT_RES||PlotType==PLOT_RESE||PlotType>=PLOT_OBS||
-                             PlotType==PLOT_SKY||PlotType==PLOT_DOP||
+                             PlotType==PLOT_SSKY||PlotType==PLOT_SKY||
+                             PlotType==PLOT_SDOP||PlotType==PLOT_DOP||
                              PlotType==PLOT_SNR||PlotType==PLOT_SNRE||
                              PlotType==PLOT_MPS;
     QFlag          ->Enabled=data;
@@ -2308,8 +2310,8 @@ void __fastcall TPlot::UpdateEnable(void)
     BtnFitHoriz    ->Visible=PlotType==PLOT_SOLP||PlotType==PLOT_SOLV||
                              PlotType==PLOT_SOLA||PlotType==PLOT_NSAT||
                              PlotType==PLOT_RES ||PlotType==PLOT_OBS ||
-                             PlotType==PLOT_DOP ||PlotType==PLOT_SNR ||
-                             PlotType==PLOT_SNRE;
+                             PlotType==PLOT_DOP ||PlotType==PLOT_SDOP||
+                             PlotType==PLOT_SNR ||PlotType==PLOT_SNRE;
     BtnFitHoriz    ->Enabled=data;
     BtnFitVert     ->Visible=PlotType==PLOT_TRK ||PlotType==PLOT_SOLP||
                              PlotType==PLOT_SOLV||PlotType==PLOT_SOLA;
@@ -2320,7 +2322,8 @@ void __fastcall TPlot::UpdateEnable(void)
     BtnFixHoriz    ->Visible=PlotType==PLOT_SOLP||PlotType==PLOT_SOLV||
                              PlotType==PLOT_SOLA||PlotType==PLOT_NSAT||
                              PlotType==PLOT_RES ||PlotType==PLOT_OBS ||
-                             PlotType==PLOT_DOP ||PlotType==PLOT_SNR;
+                             PlotType==PLOT_DOP ||PlotType==PLOT_DOP ||
+                             PlotType==PLOT_SNR;
     BtnFixHoriz    ->Enabled=data;
     BtnFixVert     ->Visible=PlotType==PLOT_SOLP||PlotType==PLOT_SOLV||
                              PlotType==PLOT_SOLA;
@@ -2329,7 +2332,7 @@ void __fastcall TPlot::UpdateEnable(void)
     BtnShowSkyplot ->Visible=PlotType==PLOT_SKY||PlotType==PLOT_MPS;
     BtnShowMap     ->Visible=PlotType==PLOT_TRK;
     BtnShowMap     ->Enabled=!BtnSol12->Down;
-    BtnShowImg     ->Visible=PlotType==PLOT_TRK||PlotType==PLOT_SKY||
+    BtnShowImg     ->Visible=PlotType==PLOT_TRK||PlotType==PLOT_SKY||PlotType==PLOT_SSKY||
                              PlotType==PLOT_MPS;
     BtnMapView     ->Visible=PlotType==PLOT_TRK||PlotType==PLOT_SOLP;
     Panel12        ->Visible=!ConnectState;
@@ -2587,12 +2590,13 @@ void __fastcall TPlot::FitRange(int all)
         delete pos2;
         delete pos;
     }
-    xl[0]-=0.05;
-    xl[1]+=0.05;
-    yl[0]-=0.05;
-    yl[1]+=0.05;
-    zl[0]-=0.05;
-    zl[1]+=0.05;
+    // add margins
+    xl[0]-=0.015;
+    xl[1]+=0.015;
+    yl[0]-=0.015;
+    yl[1]+=0.015;
+    zl[0]-=0.015;
+    zl[1]+=0.015;
     
     if (all||PlotType==PLOT_TRK) {
         GraphT->SetLim(xl,yl);

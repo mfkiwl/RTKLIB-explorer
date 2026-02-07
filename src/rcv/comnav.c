@@ -84,8 +84,8 @@ static int obsindex(obs_t *obs, gtime_t time, int sat)
     obs->data[i].sat=sat;
     for (j=0;j<NFREQ+NEXOBS;j++) {
         obs->data[i].L[j]=obs->data[i].P[j]=0.0;
-        obs->data[i].D[j]=0.0;
-        obs->data[i].SNR[j]=obs->data[i].LLI[j]=0;
+        obs->data[i].D[j]=obs->data[i].SNR[j]=0.0;
+        obs->data[i].LLI[j]=0;
         obs->data[i].code[j]=CODE_NONE;
     }
     obs->n++;
@@ -299,8 +299,7 @@ static int decode_rangecmpb(raw_t *raw)
             raw->obs.data[index].L  [pos]=adr;
             raw->obs.data[index].P  [pos]=psr;
             raw->obs.data[index].D  [pos]=(float)dop;
-            raw->obs.data[index].SNR[pos]=
-                0.0<=snr&&snr<255.0?(unsigned char)(snr*4.0+0.5):0;
+            raw->obs.data[index].SNR[pos]=0.0<=snr&&snr<255.0?snr:0;
             raw->obs.data[index].LLI[pos]=(unsigned char)lli;
             raw->obs.data[index].code[pos]=code;
 #if 0
@@ -388,8 +387,7 @@ static int decode_rangeb(raw_t *raw)
             raw->obs.data[index].L  [pos]=-adr;
             raw->obs.data[index].P  [pos]=psr;
             raw->obs.data[index].D  [pos]=(float)dop;
-            raw->obs.data[index].SNR[pos]=
-                0.0<=snr&&snr<255.0?(unsigned char)(snr*4.0+0.5):0;
+            raw->obs.data[index].SNR[pos]=0.0<=snr&&snr<255.0?snr:0;
             raw->obs.data[index].LLI[pos]=(unsigned char)lli;
             raw->obs.data[index].code[pos]=code;
 #if 0
@@ -867,8 +865,9 @@ static int decode_galfnavrawpageb(raw_t *raw)
         buff[i]=U1(p); p+=1;
     }
     page=getbitu(buff,0,6);
-    
-    trace(3,"%s E%2d FNAV     (%2d) ",time_str(raw->time,0),satid,page);
+
+    char tstr[40];
+    trace(3,"%s E%2d FNAV     (%2d) ",time2str(raw->time,tstr,0),satid,page);
     traceb(3,buff,27);
     
     return 0;
@@ -907,7 +906,8 @@ static int decode_galinavrawwordb(raw_t *raw)
         tow =getbitu(buff,108,20);
         time=gst2time(week,tow);
     }
-    trace(3,"%s E%2d INAV-%s (%2d) ",time_str(time,0),satid,sig,type);
+    char tstr[40];
+    trace(3,"%s E%2d INAV-%s (%2d) ",time2str(time,tstr,0),satid,sig,type);
     traceb(3,buff,16);
     
     return 0;
@@ -932,7 +932,8 @@ static int decode_rawcnavframeb(raw_t *raw)
     for (i=0;i<38;i++) {
         buff[i]=U1(p); p+=1;
     }
-    trace(3,"%s PRN=%3d FRMID=%2d ",time_str(raw->time,0),prn,frmid);
+    char tstr[40];
+    trace(3,"%s PRN=%3d FRMID=%2d ",time2str(raw->time,tstr,0),prn,frmid);
     traceb(3,buff,38);
     
     return 0;
@@ -1027,8 +1028,9 @@ static int decode_cnav(raw_t *raw)
     raw->time=gpst2time(week,tow);
     
     if (raw->outtype) {
+        char tstr[40];
         sprintf(raw->msgtype,"CNAV %4d (%4d): msg=%d %s",type,raw->len,msg,
-                time_str(gpst2time(week,tow),2));
+                time2str(gpst2time(week,tow),tstr,2));
     }
     if (msg!=0) return 0; /* message type: 0=binary,1=ascii */
     

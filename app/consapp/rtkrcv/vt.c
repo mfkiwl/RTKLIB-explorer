@@ -116,6 +116,7 @@ extern void vt_close(vt_t *vt)
     for (i=0;i<MAXHIST;i++) {
         free(vt->hist[i]);
     }
+    vt->state=0;
     free(vt);
 }
 /* clear line buffer ---------------------------------------------------------*/
@@ -176,10 +177,10 @@ static int ins_cur(vt_t *vt, char c)
 /* add history ---------------------------------------------------------------*/
 static int hist_add(vt_t *vt, const char *buff)
 {
-    int i,len;
-    if ((len=strlen(buff))<=0) return 1;
+    int len=vt->n;
+    if (len<=0) return 1;
     free(vt->hist[MAXHIST-1]);
-    for (i=MAXHIST-1;i>0;i--) vt->hist[i]=vt->hist[i-1];
+    for (int i=MAXHIST-1;i>0;i--) vt->hist[i]=vt->hist[i-1];
     if (!(vt->hist[0]=(char *)malloc(len+1))) return 0;
     strcpy(vt->hist[0],buff);
     return 1;

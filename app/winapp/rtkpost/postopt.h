@@ -20,13 +20,13 @@ __published:
 	TOpenDialog *OpenDialog;
 	TButton *BtnSave;
 	TButton *BtnLoad;
-	TLabel *Label5;
 	TSaveDialog *SaveDialog;
 	TPageControl *Misc;
 	TTabSheet *TabSheet1;
 	TLabel *Label3;
 	TLabel *Label8;
 	TLabel *LabelPosMode;
+	TLabel *Label5;
 	TLabel *LabelFreq;
 	TLabel *LabelElMask;
 	TLabel *Label32;
@@ -59,7 +59,7 @@ __published:
 	TEdit *ElMaskAR;
 	TEdit *SlipThres;
 	TEdit *MaxAgeDiff;
-	TEdit *RejectThres;
+    TEdit *RejectPhase;
 	TEdit *NumIter;
 	TTabSheet *TabSheet3;
 	TLabel *LabelSolFormat;
@@ -99,7 +99,6 @@ __published:
 	TEdit *PrNoise3;
 	TEdit *SatClkStab;
 	TTabSheet *TabSheet5;
-	TLabel *Label4;
 	TGroupBox *GroupRovAnt;
 	TLabel *LabelRovAntD;
 	TEdit *RovAntE;
@@ -175,7 +174,7 @@ __published:
 	TButton *BtnBLQFile;
 	TEdit *MeasErrR2;
 	TEdit *ElMaskHold;
-	TEdit *RejectGdop;
+    TEdit *RejectCode;
 	TLabel *Label39;
 	TLabel *Label40;
 	TComboBox *IntpRefObs;
@@ -192,10 +191,6 @@ __published:
 	TLabel *Label43;
 	TLabel *Label65;
 	TComboBox *ElMask;
-	TLabel *Label82;
-	TLabel *Label83;
-	TLabel *Label86;
-	TLabel *Label87;
 	TEdit *EOPFile;
 	TButton *BtnEOPFile;
 	TSpeedButton *BtnEOPView;
@@ -209,7 +204,7 @@ __published:
 	TCheckBox *PosOpt3;
 	TCheckBox *PosOpt2;
 	TCheckBox *PosOpt4;
-	TButton *BtnMask;
+	TButton *BtnSnrMask;
 	TCheckBox *PosOpt5;
 	TComboBox *SyncSol;
 	TComboBox *BdsAmbRes;
@@ -226,7 +221,6 @@ __published:
     TEdit *MinHoldSats;
     TEdit *MaxPosVarAR;
     TComboBox *ARFilter;
-    TLabel *Label24;
     TLabel *Label33;
     TLabel *Label47;
     TEdit *VarHoldAmb;
@@ -237,6 +231,7 @@ __published:
     TEdit *ValidThresARMin;
     TEdit *ValidThresARMax;
     TEdit *MeasErrR5;
+    TEdit *MeasErrR6;
     TEdit *MeasErr8;
     TLabel *Label51;
     TEdit *MeasErr7;
@@ -292,7 +287,7 @@ __published:
 	void __fastcall BtnBLQFileClick(TObject *Sender);
 	void __fastcall BtnEOPFileClick(TObject *Sender);
 	void __fastcall BtnEOPViewClick(TObject *Sender);
-	void __fastcall BtnMaskClick(TObject *Sender);
+	void __fastcall BtnSnrMaskClick(TObject *Sender);
 	void __fastcall NavSys6Click(TObject *Sender);
 	void __fastcall BtnFreqClick(TObject *Sender);
 

@@ -195,7 +195,7 @@ AnsiString TGraph::NumText(double x, double dx)
 AnsiString TGraph::TimeText(double x, double dx)
 {
     AnsiString s;
-    char str[64];
+    char str[40];
     time2str(gpst2time(Week,x),str,1);
     int b=dx<86400.0?11:(dx<86400.0*30?5:2),w=dx<60.0?(dx<1.0?10:8):5;
     return s.sprintf("%*.*s",w,w,str+b);
@@ -516,6 +516,9 @@ void TGraph::DrawCircle(TPoint p, TColor color, int rx, int ry, int style)
 	TPenStyle ps[]={psSolid,psDot,psDash,psDashDot,psDashDotDot};
 	int x1=p.x-rx,x2=p.x+rx,y1=p.y-ry,y2=p.y+ry;
 	c->Pen->Color=color; c->Pen->Style=ps[style]; c->Brush->Style=bsClear;
+        // Guard against a large radius which for which this implementation
+        // appears to be very slow and to invoke memory corruption.
+        if (x2 - x1 >= 32768 || y2 - y1 >= 32768) return;
 	c->Ellipse(x1,y1,x2,y2);
 }
 //---------------------------------------------------------------------------

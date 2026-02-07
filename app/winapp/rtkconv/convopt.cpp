@@ -63,6 +63,7 @@ void __fastcall TConvOptDialog::FormShow(TObject *Sender)
 	AutoPos->Checked=MainWindow->AutoPos;
 	PhaseShift->Checked=MainWindow->PhaseShift;
 	HalfCyc->Checked=MainWindow->HalfCyc;
+	SortSats->Checked=MainWindow->SortSats;
 	OutIono->Checked=MainWindow->OutIono;
 	OutTime->Checked=MainWindow->OutTime;
 	OutLeaps->Checked=MainWindow->OutLeaps;
@@ -85,6 +86,8 @@ void __fastcall TConvOptDialog::FormShow(TObject *Sender)
 	Freq2->Checked=MainWindow->FreqType&FREQTYPE_L2;
 	Freq3->Checked=MainWindow->FreqType&FREQTYPE_L3;
 	Freq4->Checked=MainWindow->FreqType&FREQTYPE_L4;
+	Freq5->Checked=MainWindow->FreqType&FREQTYPE_L5;
+	Freq6->Checked=MainWindow->FreqType&FREQTYPE_L6;
 	ExSats->Text=MainWindow->ExSats;
 	TraceLevel->ItemIndex=MainWindow->TraceLevel;
 	ChkSepNav->Checked=MainWindow->SepNav;
@@ -122,6 +125,7 @@ void __fastcall TConvOptDialog::BtnOkClick(TObject *Sender)
 	MainWindow->AutoPos=AutoPos->Checked;
 	MainWindow->PhaseShift=PhaseShift->Checked;
 	MainWindow->HalfCyc=HalfCyc->Checked;
+	MainWindow->SortSats=SortSats->Checked;
 	MainWindow->OutIono=OutIono->Checked;
 	MainWindow->OutTime=OutTime->Checked;
 	MainWindow->OutLeaps=OutLeaps->Checked;
@@ -145,6 +149,8 @@ void __fastcall TConvOptDialog::BtnOkClick(TObject *Sender)
 	if (Freq2->Checked) freqtype|=FREQTYPE_L2;
 	if (Freq3->Checked) freqtype|=FREQTYPE_L3;
 	if (Freq4->Checked) freqtype|=FREQTYPE_L4;
+	if (Freq5->Checked) freqtype|=FREQTYPE_L5;
+	if (Freq6->Checked) freqtype|=FREQTYPE_L6;
 	MainWindow->NavSys=navsys;
 	MainWindow->ObsType=obstype;
 	MainWindow->FreqType=freqtype;
@@ -189,6 +195,8 @@ void __fastcall TConvOptDialog::BtnMaskClick(TObject *Sender)
 	if (Freq2->Checked) CodeOptDialog->FreqType|=FREQTYPE_L2;
 	if (Freq3->Checked) CodeOptDialog->FreqType|=FREQTYPE_L3;
 	if (Freq4->Checked) CodeOptDialog->FreqType|=FREQTYPE_L4;
+	if (Freq5->Checked) CodeOptDialog->FreqType|=FREQTYPE_L5;
+	if (Freq6->Checked) CodeOptDialog->FreqType|=FREQTYPE_L6;
 	CodeOptDialog->ShowModal();
 }
 //---------------------------------------------------------------------------
@@ -198,14 +206,14 @@ void __fastcall TConvOptDialog::UpdateEnable(void)
 	AppPos1->Enabled=AutoPos->Checked;
 	AppPos2->Enabled=AutoPos->Checked;
 	ChkSepNav->Enabled=RnxVer->ItemIndex>=3;
-	Label13->Enabled=MainWindow->TimeIntF->Checked;
-	TimeTol->Enabled=MainWindow->TimeIntF->Checked;
 	Nav3->Enabled=RnxVer->ItemIndex>=1;
 	Nav4->Enabled=RnxVer->ItemIndex>=5;
 	Nav6->Enabled=RnxVer->ItemIndex==2||RnxVer->ItemIndex>=4;
 	Nav7->Enabled=RnxVer->ItemIndex>=6;
 	Freq3->Enabled=RnxVer->ItemIndex>=1;
 	Freq4->Enabled=RnxVer->ItemIndex>=1;
+	Freq5->Enabled=RnxVer->ItemIndex>=1;
+	Freq6->Enabled=RnxVer->ItemIndex>=1;
 	PhaseShift->Enabled=RnxVer->ItemIndex>=4;
 }
 //---------------------------------------------------------------------------

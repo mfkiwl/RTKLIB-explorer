@@ -31,7 +31,8 @@
 #define SQR(x)      ((x)*(x))
 #define MAX(x,y)    ((x)>=(y)?(x):(y))
 
-#if 0 /* enable GPS-QZS time offset estimation */
+#define QZSDT /* enable GPS-QZS time offset estimation */
+#ifdef QZSDT
 #define NX          (4+5)       /* # of estimated parameters */
 #else
 #define NX          (4+4)       /* # of estimated parameters */
@@ -44,6 +45,7 @@
 #define ERR_CBIAS   0.3         /* code bias error Std (m) */
 #define REL_HUMI    0.7         /* relative humidity for Saastamoinen model */
 #define MIN_EL      (5.0*D2R)   /* min elevation for measurement error (rad) */
+# define MAX_GDOP   30          /* max gdop for valid solution  */
 
 /* pseudorange measurement error variance ------------------------------------*/
 static double varerr(const prcopt_t *opt, const ssat_t *ssat, const obsd_t *obs, double el, int sys)
@@ -63,12 +65,12 @@ static double varerr(const prcopt_t *opt, const ssat_t *ssat, const obsd_t *obs,
     /* var = R^2*(a^2 + (b^2/sin(el) + c^2*(10^(0.1*(snr_max-snr_rover)))) + (d*rcv_std)^2) */
     varr=SQR(opt->err[1])+SQR(opt->err[2])/sin(el);
     if (opt->err[6]>0.0) {  /* if snr term not zero */
-        snr_rover=(ssat)?SNR_UNIT*ssat->snr_rover[0]:opt->err[5];
+        snr_rover=(ssat)?ssat->snr_rover[0]:opt->err[5];
         varr+=SQR(opt->err[6])*pow(10,0.1*MAX(opt->err[5]-snr_rover,0));
     }
     varr*=SQR(opt->eratio[0]);
     if (opt->err[7]>0.0) {
-        varr+=SQR(opt->err[7]*0.01*(1<<(obs->Pstd[0]+5)));  /* 0.01*2^(n+5) m */
+        varr+=SQR(opt->err[7]*obs->Pstd[0]);
     }
     if (opt->ionoopt==IONOOPT_IFLC) varr*=SQR(3.0); /* iono-free */
     return SQR(fact)*varr;
@@ -96,12 +98,12 @@ static int snrmask(const obsd_t *obs, const double *azel, const prcopt_t *opt)
 {
     int f2;
 
-    if (testsnr(0,0,azel[1],obs->SNR[0]*SNR_UNIT,&opt->snrmask)) {
+    if (testsnr(0,0,azel[1],obs->SNR[0],&opt->snrmask)) {
         return 0;
     }
     if (opt->ionoopt==IONOOPT_IFLC) {
         f2=seliflc(opt->nf,satsys(obs->sat,NULL));
-        if (testsnr(0,f2,azel[1],obs->SNR[f2]*SNR_UNIT,&opt->snrmask)) return 0;
+        if (testsnr(0,f2,azel[1],obs->SNR[f2],&opt->snrmask)) return 0;
     }
     return 1;
 }
@@ -110,8 +112,8 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
                      double *var)
 {
     double P1,P2,gamma,b1,b2;
-    int sat,sys,f2;
-    
+    int sat,sys,f2,bias_ix;
+
     sat=obs->sat;
     sys=satsys(sat,NULL);
     P1=obs->P[0];
@@ -120,11 +122,19 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
     *var=0.0;
     
     if (P1==0.0||(opt->ionoopt==IONOOPT_IFLC&&P2==0.0)) return 0.0;
-    
-    /* P1-C1,P2-C2 DCB correction */
-    if (sys==SYS_GPS||sys==SYS_GLO) {
-        if (obs->code[0]==CODE_L1C) P1+=nav->cbias[sat-1][1]; /* C1->P1 */
-        if (obs->code[1]==CODE_L2C) P2+=nav->cbias[sat-1][2]; /* C2->P2 */
+    bias_ix=code2bias_ix(sys,obs->code[0]);  /* L1 code bias */
+    if (bias_ix>0) { /* 0=ref code */
+        P1+=nav->cbias[sat-1][0][bias_ix-1];
+    }
+    /* GPS code biases are L1/L2, Galileo are L1/L5 */
+    if (sys==SYS_GAL&&f2==1) {
+        /* skip code bias, no GAL L2 bias available */
+    }
+    else {  /* apply L2 or L5 code bias */
+        bias_ix=code2bias_ix(sys,obs->code[f2]);
+        if (bias_ix>0) { /* 0=ref code */
+            P2+=nav->cbias[sat-1][1][bias_ix-1]; /* L2 or L5 code bias */
+        }
     }
     if (opt->ionoopt==IONOOPT_IFLC) { /* dual-frequency */
         
@@ -133,7 +143,7 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
             return (P2-gamma*P1)/(1.0-gamma);
         }
         else if (sys==SYS_GLO) { /* G1-G2 or G1-G3 */
-            gamma=f2==1?SQR(FREQ1_GLO/FREQ2_GLO):SQR(FREQ1_GLO/FREQ2_GLO);
+            gamma=f2==1?SQR(FREQ1_GLO/FREQ2_GLO):SQR(FREQ1_GLO/FREQ3_GLO);
             return (P2-gamma*P1)/(1.0-gamma);
         }
         else if (sys==SYS_GAL) { /* E1-E5b, E1-E5a */
@@ -155,7 +165,7 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
             gamma=SQR(FREQL5/FREQs);
             return (P2-gamma*P1)/(1.0-gamma);
         }
-        }
+    }
     else { /* single-freq (L1/E1/B1) */
         *var=SQR(ERR_CBIAS);
         
@@ -204,8 +214,9 @@ extern int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
 {
     int err=0;
 
+    char tstr[40];
     trace(4,"ionocorr: time=%s opt=%d sat=%2d pos=%.3f %.3f azel=%.3f %.3f\n",
-          time_str(time,3),ionoopt,sat,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
+          time2str(time,tstr,3),ionoopt,sat,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
           azel[1]*R2D);
     
     /* SBAS ionosphere model */
@@ -248,8 +259,9 @@ extern int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
 extern int tropcorr(gtime_t time, const nav_t *nav, const double *pos,
                     const double *azel, int tropopt, double *trp, double *var)
 {
+    char tstr[40];
     trace(4,"tropcorr: time=%s opt=%d pos=%.3f %.3f azel=%.3f %.3f\n",
-          time_str(time,3),tropopt,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
+          time2str(time,tstr,3),tropopt,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
           azel[1]*R2D);
     
     /* Saastamoinen model */
@@ -293,7 +305,8 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         
         /* reject duplicated observation data */
         if (i<n-1&&i<MAXOBS-1&&sat==obs[i+1].sat) {
-            trace(2,"duplicated obs data %s sat=%d\n",time_str(time,3),sat);
+            char tstr[40];
+            trace(2,"duplicated obs data %s sat=%d\n",time2str(time,tstr,3),sat);
             i++;
             continue;
         }
@@ -313,15 +326,16 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
                 continue;
             }
             if ((freq=sat2freq(sat,obs[i].code[0],nav))==0.0) continue;
+            /* Convert from FREQL1 to freq */
             dion*=SQR(FREQL1/freq);
-            vion*=SQR(FREQL1/freq);
+            vion*=SQR(SQR(FREQL1/freq));
         
             /* tropospheric correction */
             if (!tropcorr(time,nav,pos,azel+i*2,opt->tropopt,&dtrp,&vtrp)) {
                 continue;
             }
         }
-        /* psendorange with code bias correction */
+        /* pseudorange with code bias correction */
         if ((P=prange(obs+i,nav,opt,&vmeas))==0.0) continue;
         
         /* pseudorange residual */
@@ -338,7 +352,7 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         else if (sys==SYS_GAL) {v[nv]-=x[5]; H[5+nv*NX]=1.0; mask[2]=1;}
         else if (sys==SYS_CMP) {v[nv]-=x[6]; H[6+nv*NX]=1.0; mask[3]=1;}
         else if (sys==SYS_IRN) {v[nv]-=x[7]; H[7+nv*NX]=1.0; mask[4]=1;}
-#if 0 /* enable QZS-GPS time offset estimation */
+#ifdef QZSDT
         else if (sys==SYS_QZS) {v[nv]-=x[8]; H[8+nv*NX]=1.0; mask[5]=1;}
 #endif
         else mask[0]=1;
@@ -346,7 +360,11 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         vsat[i]=1; resp[i]=v[nv]; (*ns)++;
         
         /* variance of pseudorange error */
-        var[nv++]=varerr(opt,&ssat[i],&obs[i],azel[1+i*2],sys)+vare[i]+vmeas+vion+vtrp;
+        var[nv]=vare[i]+vmeas+vion+vtrp;
+        if (ssat)
+            var[nv++]+=varerr(opt,&ssat[i],&obs[i],azel[1+i*2],sys);
+        else
+            var[nv++]+=varerr(opt,NULL,&obs[i],azel[1+i*2],sys);
         trace(4,"sat=%2d azel=%5.1f %4.1f res=%7.3f sig=%5.3f\n",obs[i].sat,
               azel[i*2]*R2D,azel[1+i*2]*R2D,resp[i],sqrt(var[nv-1]));
     }
@@ -383,7 +401,7 @@ static int valsol(const double *azel, const int *vsat, int n,
         ns++;
     }
     dops(ns,azels,opt->elmin,dop);
-    if (dop[0]<=0.0||dop[0]>opt->maxgdop) {
+    if (dop[0]<=0.0||dop[0]>MAX_GDOP) {
         sprintf(msg,"gdop error nv=%d gdop=%.1f",nv,dop[0]);
         return 0;
     }
@@ -400,7 +418,7 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
     
     trace(3,"estpos  : n=%d\n",n);
     
-    v=mat(n+4,1); H=mat(NX,n+4); var=mat(n+4,1);
+    v=mat(n+NX-3,1); H=mat(NX,n+NX-3); var=mat(n+NX-3,1);
     
     for (i=0;i<3;i++) x[i]=sol->rr[i];
 
@@ -436,6 +454,9 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
             sol->dtr[2]=x[5]/CLIGHT; /* GAL-GPS time offset (s) */
             sol->dtr[3]=x[6]/CLIGHT; /* BDS-GPS time offset (s) */
             sol->dtr[4]=x[7]/CLIGHT; /* IRN-GPS time offset (s) */
+#ifdef QZSDT
+            sol->dtr[5]=x[8]/CLIGHT; /* QZS-GPS time offset (s) */
+#endif
             for (j=0;j<6;j++) sol->rr[j]=j<3?x[j]:0.0;
             for (j=0;j<3;j++) sol->qr[j]=(float)Q[j+j*NX];
             sol->qr[3]=(float)Q[1];    /* cov xy */
@@ -457,7 +478,7 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
     free(v); free(H); free(var);
     return 0;
 }
-/* RAIM FDE (failure detection and exclution) -------------------------------*/
+/* RAIM FDE (failure detection and exclusion) -------------------------------*/
 static int raim_fde(const obsd_t *obs, int n, const double *rs,
                     const double *dts, const double *vare, const int *svh,
                     const nav_t *nav, const prcopt_t *opt, const ssat_t *ssat, 
@@ -465,11 +486,11 @@ static int raim_fde(const obsd_t *obs, int n, const double *rs,
 {
     obsd_t *obs_e;
     sol_t sol_e={{0}};
-    char tstr[32],name[16],msg_e[128];
+    char tstr[40],name[8],msg_e[128];
     double *rs_e,*dts_e,*vare_e,*azel_e,*resp_e,rms_e,rms=100.0;
     int i,j,k,nvsat,stat=0,*svh_e,*vsat_e,sat=0;
     
-    trace(3,"raim_fde: %s n=%2d\n",time_str(obs[0].time,0),n);
+    trace(3,"raim_fde: %s n=%2d\n",time2str(obs[0].time,tstr,0),n);
     
     if (!(obs_e=(obsd_t *)malloc(sizeof(obsd_t)*n))) return 0;
     rs_e = mat(6,n); dts_e = mat(2,n); vare_e=mat(1,n); azel_e=zeros(2,n);
@@ -523,10 +544,12 @@ static int raim_fde(const obsd_t *obs, int n, const double *rs,
         vsat[i]=0;
         strcpy(msg,msg_e);
     }
+#ifdef TRACE
     if (stat) {
         time2str(obs[0].time,tstr,2); satno2id(sat,name);
         trace(2,"%s: %s excluded by raim\n",tstr+11,name);
     }
+#endif
     free(obs_e);
     free(rs_e ); free(dts_e ); free(vare_e); free(azel_e);
     free(svh_e); free(vsat_e); free(resp_e);
@@ -557,15 +580,15 @@ static int resdop(const obsd_t *obs, int n, const double *rs, const double *dts,
         a[0]=sin(azel[i*2])*cosel;
         a[1]=cos(azel[i*2])*cosel;
         a[2]=sin(azel[1+i*2]);
-        matmul("TN",3,1,3,1.0,E,a,0.0,e);
+        matmul("TN",3,1,3,E,a,e);
         
         /* satellite velocity relative to receiver in ECEF */
         for (j=0;j<3;j++) {
             vs[j]=rs[j+3+i*6]-x[j];
         }
         /* range rate with earth rotation correction */
-        rate=dot(vs,e,3)+OMGE/CLIGHT*(rs[4+i*6]*rr[0]+rs[1+i*6]*x[0]-
-                                      rs[3+i*6]*rr[1]-rs[  i*6]*x[1]);
+        rate=dot3(vs,e)+OMGE/CLIGHT*(rs[4+i*6]*rr[0]+rs[1+i*6]*x[0]-
+                                     rs[3+i*6]*rr[1]-rs[  i*6]*x[1]);
         
         /* Std of range rate error (m/s) */
         sig=(err<=0.0)?1.0:err*CLIGHT/freq;
@@ -638,7 +661,8 @@ extern int pntpos(const obsd_t *obs, int n, const nav_t *nav,
     double *rs,*dts,*var,*azel_,*resp;
     int i,stat,vsat[MAXOBS]={0},svh[MAXOBS];
     
-    trace(3,"pntpos  : tobs=%s n=%d\n",time_str(obs[0].time,3),n);
+    char tstr[40];
+    trace(3,"pntpos  : tobs=%s n=%d\n",time2str(obs[0].time,tstr,3),n);
     
     sol->stat=SOLQ_NONE;
     
@@ -665,7 +689,7 @@ extern int pntpos(const obsd_t *obs, int n, const nav_t *nav,
         opt_.ionoopt=IONOOPT_BRDC;
         opt_.tropopt=TROPOPT_SAAS;
     }
-    /* satellite positons, velocities and clocks */
+    /* satellite positions, velocities and clocks */
     satposs(sol->time,obs,n,nav,opt_.sateph,rs,dts,var,svh);
     
     /* estimate receiver position and time with pseudorange */
